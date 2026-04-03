@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset='utf-8' />
+    <title>University of Oregon Mapping</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <!--    Include the reference to the Mapbox JavaScript here in the <head> of the page  (Part I.1)  -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.20.0/mapbox-gl.js"></script>
+
+
+
+    <!--    Include the reference to the Mapbox CSS here in between <head> tags    (Part I.2) -->
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.20.0/mapbox-gl.css" rel="stylesheet">
+
+    <style>
+        /* Insert the additional CSS code here between the <style> tags  (Part I.4)   */
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            opacity: 100%;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        /* added padding to the banner to get rid of the unused space 
+        from the top of the screen and made the text not opaque */
+        #banner {
+            position: absolute;
+            z-index: 9999;
+            background-color: rgba(255, 255, 255, 0.8);
+            text-align: center;
+            width: 100%;
+            padding-top: 1px;
+            padding-bottom: 1px;
+        }
+    </style>
+</head>
+
+<body>
+    <!--  Insert the map div here in the <body> of the page  (Part I)  -->
+    <div id='map'></div>
+    <!--  Insert the title div here (part VI) -->
+    <div id='banner'>
+        <h1>My Map of Portland</h1>
+        <h2>By: Owen Wilson</h2>
+    </div>
+    <script>
+        // Insert the JavaScript within the <script> tags, within the body   
+        // Start with the Mapbox access token here (Part 2.1)
+        mapboxgl.accessToken = 'pk.eyJ1Ijoib3dlbndpbHNvbjgwIiwiYSI6ImNtbmdxamsyNzBkYzEyb29tMTc5Y2ZxZjQifQ.H80u2eqZMFKdGk-75Loj7w';
+
+
+        // Then initialize the map here (Part 2.2)
+        var map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/owenwilson80/cmni8qjud000i01slbl1bcm2r',
+            center: [-122.6788, 45.5212],
+            zoom: 11
+        });
+        // Add the zoom contols here (part V)
+        map.addControl(new mapboxgl.NavigationControl({
+            showCompass: false
+        }), 'bottom-left');
+        // Add popups for markers here. Yes, before the markers!  (part IV)
+        var popup = new mapboxgl.Popup({ offset: 25 })
+            .setHTML('Hello World. Welcome to Portland!');
+
+        var popup2 = new mapboxgl.Popup({ offset: 25 })
+            .setHTML('Welcome to Lake Oswego!');
+
+        // Add any other variables such as markers here (part III)
+        var marker = new mapboxgl.Marker({ color: 'red' })
+            .setLngLat([-122.6788, 45.5212])
+            .setPopup(popup)
+            .addTo(map);
+
+        var marker2 = new mapboxgl.Marker({ color: 'green' })
+            .setLngLat([-122.67, 45.425])
+            .setPopup(popup2)
+            .addTo(map);
+        // Add optional advanced "On load" function here
+        map.on('load', () => {
+
+            //color for basemap cities when selected or hovered
+            map.setConfigProperty('basemap', 'place-labels', {
+                textColor: [
+                    'case',
+                    ['boolean', ['feature-state', 'select'], false],
+                    '#8B0000',
+
+                    ['boolean', ['feature-state', 'highlight'], false],
+                    '#ff6b6b',
+
+                ]
+            });
+
+            //adds rain
+            map.setRain({
+                density: 1,
+                intensity: 0.3,
+                "distortion-strength": 0.3
+            });
+
+            //variables to keep track of currently hovered and selected city
+            let hovered = null;
+            let selected = null;
+
+            //hover city label color change and cursor change to pointer so the user knows its clickable
+            map.addInteraction('hover-enter', {
+                type: 'mouseenter',
+                target: { featuresetId: 'place-labels', importId: 'basemap' },
+                handler: (e) => {
+                    if (hovered) {
+                        map.setFeatureState(hovered, { highlight: false });
+                    }
+                    hovered = e.feature;
+                    map.setFeatureState(hovered, { highlight: true });
+                    map.getCanvas().style.cursor = 'pointer';
+                }
+            });
+
+            //removes hover change when mouse leaves
+            map.addInteraction('hover-leave', {
+                type: 'mouseleave',
+                target: { featuresetId: 'place-labels', importId: 'basemap' },
+                handler: () => {
+                    if (hovered) {
+                        map.setFeatureState(hovered, { highlight: false });
+                        hovered = null;
+                        map.getCanvas().style.cursor = 'grab';
+
+                    }
+                }
+            });
+
+            //changes color to the selected color and flys to the selected city while adding zoom
+            map.addInteraction('click-city', {
+                type: 'click',
+                target: { featuresetId: 'place-labels', importId: 'basemap' },
+                handler: (e) => {
+                    if (selected) {
+                        map.setFeatureState(selected, { select: false });
+                    }
+                    selected = e.feature;
+                    map.setFeatureState(selected, { select: true });
+                    map.flyTo({
+                        center: [e.feature.geometry.coordinates[0], e.feature.geometry.coordinates[1]],
+                        zoom: 14
+                    });
+                }
+            });
+
+            //handles removing the selected color when dragging away from the selected city
+            //also changes the cursor to grabbing when dragging for a cleaner UX
+            map.on('dragstart', () => {
+                map.getCanvas().style.cursor = 'grabbing';
+                map.setFeatureState(selected, { select: false });
+                selected = null;
+            });
+
+            //changes the cursor back to the default grab cursor when done dragging
+            map.on('dragend', () => {
+                map.getCanvas().style.cursor = 'grab';
+            });
+        });
+    </script>
+
+</body>
+
+</html>
