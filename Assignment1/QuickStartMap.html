@@ -77,6 +77,12 @@
         var popup2 = new mapboxgl.Popup({ offset: 25 })
             .setHTML('Welcome to Lake Oswego!');
 
+        var popup_layer = new mapboxgl.Popup({ offset: 25, closeOnClick: true, closeButton: false })
+            .setHTML('<a href="https://acidixzz.github.io/portfolio/">Click me</a>')
+            .setLngLat([-122.64, 45.5])
+            .addTo(map);
+
+
         // Add any other variables such as markers here (part III)
         var marker = new mapboxgl.Marker({ color: 'red' })
             .setLngLat([-122.6788, 45.5212])
@@ -87,6 +93,7 @@
             .setLngLat([-122.67, 45.425])
             .setPopup(popup2)
             .addTo(map);
+
         // Add optional advanced "On load" function here
         map.on('load', () => {
 
