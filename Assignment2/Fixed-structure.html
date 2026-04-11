@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8' />
+    <title>Fixed Map</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <!--    1.1.  Include the reference to the Mapbox JavaScript here in the <head> of the page  -->
+      <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js'></script>
+    <!--    1.2 Include the reference to the Mapbox CSS here in the <head> of the page  -->
+      <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        /* 1.4 Insert the CSS code here between the <style> tags */
+        body { margin:50px; padding:0; }
+        #map1 { position:relative; height:300px; width:100%;}
+        #map2 { position:relative; height:300px; width:100%;}
+        /* 2.5.2 Insert additional CSS code here between the <style> tags */
+
+    </style>
+  </head>
+
+  <body>
+        <!-- 1.3 Insert the div for the structure of the page here in the <body> of the page -->
+        <h1> Map 1: </h1>
+          <div id='map1'></div>
+        <hr>
+        <h1> Map 2: </h1>
+          <div id='map2'></div>
+        <hr>
+
+        <script>
+          /* Insert the JavaScript within the <script> tags, within the body */
+          // 2.1 Start with the Mapbox access token
+          mapboxgl.accessToken = 'pk.eyJ1Ijoib3dlbndpbHNvbjgwIiwiYSI6ImNtbmdxamsyNzBkYzEyb29tMTc5Y2ZxZjQifQ.H80u2eqZMFKdGk-75Loj7w';
+
+
+          // 2.2 Then initialize the first map
+          var map = new mapboxgl.Map({
+              container: 'map1', 
+              style: 'mapbox://styles/mapbox/streets-v11', 
+              center: [-122.6788, 45.5212],
+              zoom: 11
+          });
+
+          // 2.3 Add any other variables (such as popups and markers) to the first map
+          var popup = new mapboxgl.Popup()
+                    .setText('This is my first point.');
+
+          var marker = new mapboxgl.Marker({color:'red'})
+            .setLngLat([-122.6788, 45.5212]) // starting position [lng, lat]
+            .setPopup(popup) //add the popup named "popup" to this marker 
+            .addTo(map); // add it to the map with the ID "map"
+
+          // 2.4 Add arguments to disable the map interactivity here
+          // Disable drag and zoom handlers.
+          map.dragPan.disable();
+          map.scrollZoom.disable();
+          map.boxZoom.disable();
+          map.dragRotate.disable();
+          map.keyboard.disable();
+          map.doubleClickZoom.disable();
+          map.touchZoomRotate.disable();
+          map.touchZoomRotate.disableRotation();
+
+          // 2.5.3 Then initialize the 2nd map
+          var map2 = new mapboxgl.Map({
+            container: 'map2', // id of a div on your page, where the map will be inserted
+            style: 'mapbox://styles/mapbox/streets-v11', // stylesheet location
+            center: [-122.6588, 45.1212], // starting position [lng, lat] eg. [-122.6788, 45.5212]
+            zoom: 11 // starting zoom 
+          });
+
+          // 2.5.4 Add any other variables (such as markers) to the second map
+          var popup2 = new mapboxgl.Popup()
+            .setText('This is my second point.');
+
+          var marker2 = new mapboxgl.Marker({color:'blue'})
+            .setLngLat([-122.6588, 45.1212]) // starting position [lng, lat] 
+            .setPopup(popup2) //add the popup to the marker 
+            .addTo(map2); // id it to the map with the ID *map2*
+
+          // 2.5.5 Add arguments to disable the second map's interactivity here
+          map2.dragPan.disable();
+          map2.scrollZoom.disable();
+          map2.boxZoom.disable();
+          map2.dragRotate.disable();
+          map2.keyboard.disable();
+          map2.doubleClickZoom.disable();
+          map2.touchZoomRotate.disable();
+          map2.touchZoomRotate.disableRotation();
+
+          // 2.6 Change the map pointers
+          map.getCanvas().style.cursor = 'auto';
+          map2.getCanvas().style.cursor = 'auto';
+
+        </script>
+  </body>
+</html>
