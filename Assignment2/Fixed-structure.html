@@ -1,98 +1,126 @@
 <!DOCTYPE html>
 <html>
 
-  <head>
-    <meta charset='utf-8' />
-    <title>Fixed Map</title>
-    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
-    <!--    1.1.  Include the reference to the Mapbox JavaScript here in the <head> of the page  -->
-      <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js'></script>
-    <!--    1.2 Include the reference to the Mapbox CSS here in the <head> of the page  -->
-      <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css' rel='stylesheet' />
-    <style>
-        /* 1.4 Insert the CSS code here between the <style> tags */
-        body { margin:50px; padding:0; }
-        #map1 { position:relative; height:300px; width:100%;}
-        #map2 { position:relative; height:300px; width:100%;}
-        /* 2.5.2 Insert additional CSS code here between the <style> tags */
+<head>
+  <meta charset='utf-8' />
+  <title>Fixed Map</title>
+  <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+  <!--    1.1.  Include the reference to the Mapbox JavaScript here in the <head> of the page  -->
+  <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js'></script>
+  <!--    1.2 Include the reference to the Mapbox CSS here in the <head> of the page  -->
+  <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css' rel='stylesheet' />
+  <style>
+    /* 1.4 Insert the CSS code here between the <style> tags */
+    body {
+      background-color: #171717;
+      margin: 50px;
+      padding: 0;
+    }
 
-    </style>
-  </head>
+    h1 {
+      color: #fff;
+    }
 
-  <body>
-        <!-- 1.3 Insert the div for the structure of the page here in the <body> of the page -->
-        <h1> Map 1: </h1>
-          <div id='map1'></div>
-        <hr>
-        <h1> Map 2: </h1>
-          <div id='map2'></div>
-        <hr>
+    p {
+      color: #fff;
+    }
 
-        <script>
-          /* Insert the JavaScript within the <script> tags, within the body */
-          // 2.1 Start with the Mapbox access token
-          mapboxgl.accessToken = 'pk.eyJ1Ijoib3dlbndpbHNvbjgwIiwiYSI6ImNtbmdxamsyNzBkYzEyb29tMTc5Y2ZxZjQifQ.H80u2eqZMFKdGk-75Loj7w';
+    #map1 {
+      position: relative;
+      height: 30vh;
+      width: 100%;
+    }
 
+    #map2 {
+      position: relative;
+      height: 30vh;
+      width: 100%;
+    }
 
-          // 2.2 Then initialize the first map
-          var map = new mapboxgl.Map({
-              container: 'map1', 
-              style: 'mapbox://styles/mapbox/streets-v11', 
-              center: [-122.6788, 45.5212],
-              zoom: 11
-          });
+    #map3 {
+      position: relative;
+      height: 30vh;
+      width: 100%;
+    }
 
-          // 2.3 Add any other variables (such as popups and markers) to the first map
-          var popup = new mapboxgl.Popup()
-                    .setText('This is my first point.');
+    /* 2.5.2 Insert additional CSS code here between the <style> tags */
+  </style>
+</head>
 
-          var marker = new mapboxgl.Marker({color:'red'})
-            .setLngLat([-122.6788, 45.5212]) // starting position [lng, lat]
-            .setPopup(popup) //add the popup named "popup" to this marker 
-            .addTo(map); // add it to the map with the ID "map"
+<body>
+  <!-- 1.3 Insert the div for the structure of the page here in the <body> of the page -->
 
-          // 2.4 Add arguments to disable the map interactivity here
-          // Disable drag and zoom handlers.
-          map.dragPan.disable();
-          map.scrollZoom.disable();
-          map.boxZoom.disable();
-          map.dragRotate.disable();
-          map.keyboard.disable();
-          map.doubleClickZoom.disable();
-          map.touchZoomRotate.disable();
-          map.touchZoomRotate.disableRotation();
+  <script>
+    const coords = [
+      {
+        long: 12.3155, lat: 45.4408,
+        color: 'blue',
+        title: 'Venice',
+        text: 'My family decided to go on a trip to Italy for my brother’s high school graduation, and we started our trip in Venice, and it immediately felt like we had stepped into a completely different world. The canals, narrow streets, and lack of cars made everything feel unique and almost surreal. We visited famous spots like St. Mark’s Square and took a gondola ride through the canals, which was one of the highlights of the city. Walking around and getting slightly lost in Venice turned out to be one of the best parts of the experience.',
+        popupText: 'Venice is a city in Italy known for its canals and architecture.'
+      },
+      {
+        long: 11.2558, lat: 43.7696,
+        color: 'green',
+        title: 'Florence',
+        text: 'Next, we traveled to Florence, which ended up being my favorite stop on the trip. The city had an amazing mix of art, history, and incredible food. We visited major attractions like the Florence Cathedral and saw famous artwork, including pieces by Michelangelo. The views from the top of the cathedral were unforgettable, and the overall atmosphere of the city felt more relaxed compared to Venice. Everything about Florence, from the architecture to the food, made it stand out as the best part of the trip for me.',
+        popupText: 'Florence is a city in Italy known for its art and architecture.'
+      },
+      {
+        long: 12.4964, lat: 41.9028,
+        color: 'red',
+        title: 'Rome',
+        text: 'Finally, we ended our vacation in Rome, where history felt like it was everywhere you looked. We explored iconic landmarks like the Colosseum, the Roman Forum, and the Vatican, all of which were even more impressive in person. It was amazing to walk through places that are so important to world history and still standing today. During our visit, we even got to see the Pope speak in St. Peter’s Square, which made the experience feel even more special and memorable. Rome was a perfect way to end the trip, and overall, it was a really fun way to celebrate my brother’s graduation.',
+        popupText: 'Rome is a city in Italy known for its history and architecture.'
+      }
+    ];
 
-          // 2.5.3 Then initialize the 2nd map
-          var map2 = new mapboxgl.Map({
-            container: 'map2', // id of a div on your page, where the map will be inserted
-            style: 'mapbox://styles/mapbox/streets-v11', // stylesheet location
-            center: [-122.6588, 45.1212], // starting position [lng, lat] eg. [-122.6788, 45.5212]
-            zoom: 11 // starting zoom 
-          });
+    mapboxgl.accessToken = 'pk.eyJ1Ijoib3dlbndpbHNvbjgwIiwiYSI6ImNtbmdxamsyNzBkYzEyb29tMTc5Y2ZxZjQifQ.H80u2eqZMFKdGk-75Loj7w';
 
-          // 2.5.4 Add any other variables (such as markers) to the second map
-          var popup2 = new mapboxgl.Popup()
-            .setText('This is my second point.');
+    for (const [index, { long, lat, color, title, text, popupText }] of coords.entries()) {
+      const id = `map${index + 1}`;
 
-          var marker2 = new mapboxgl.Marker({color:'blue'})
-            .setLngLat([-122.6588, 45.1212]) // starting position [lng, lat] 
-            .setPopup(popup2) //add the popup to the marker 
-            .addTo(map2); // id it to the map with the ID *map2*
+      //Add the map element to the body
+      const mapElement = document.createElement('div')
+      mapElement.innerHTML = `
+        <h1> Map of ${title}: </h1>
+        <p> ${text} </p>
+        <div id=${id}></div>
+        ${index !== coords.length - 1 ? '<hr>' : ''}
+      `;
+      document.body.appendChild(mapElement);
 
-          // 2.5.5 Add arguments to disable the second map's interactivity here
-          map2.dragPan.disable();
-          map2.scrollZoom.disable();
-          map2.boxZoom.disable();
-          map2.dragRotate.disable();
-          map2.keyboard.disable();
-          map2.doubleClickZoom.disable();
-          map2.touchZoomRotate.disable();
-          map2.touchZoomRotate.disableRotation();
+      //Mapbox API
+      const map = new mapboxgl.Map({
+        container: id,
+        style: 'mapbox://styles/owenwilson80/cmni8qjud000i01slbl1bcm2r',
+        center: [long, lat],
+        zoom: 11
+      });
 
-          // 2.6 Change the map pointers
-          map.getCanvas().style.cursor = 'auto';
-          map2.getCanvas().style.cursor = 'auto';
+      var popup = new mapboxgl.Popup()
+        .setText(popupText);
 
-        </script>
-  </body>
+      var marker = new mapboxgl.Marker({ color })
+        .setLngLat([long, lat]) // starting position [lng, lat]
+        .setPopup(popup) //add the popup named "popup" to this marker 
+        .addTo(map); // add it to the map with the ID "map"
+
+      // 2.4 Add arguments to disable the map interactivity here
+      // Disable drag and zoom handlers.
+      map.dragPan.disable();
+      map.scrollZoom.disable();
+      map.boxZoom.disable();
+      map.dragRotate.disable();
+      map.keyboard.disable();
+      map.doubleClickZoom.disable();
+      map.touchZoomRotate.disable();
+      map.touchZoomRotate.disableRotation();
+
+      map.getCanvas().style.cursor = 'auto';
+    }
+
+  </script>
+</body>
+
 </html>
