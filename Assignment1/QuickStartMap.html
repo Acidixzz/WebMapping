@@ -64,7 +64,7 @@
             container: 'map',
             style: 'mapbox://styles/owenwilson80/cmni8qjud000i01slbl1bcm2r',
             center: [-122.6788, 45.5212],
-            zoom: 11
+            zoom: 9
         });
         // Add the zoom contols here (part V)
         map.addControl(new mapboxgl.NavigationControl({
@@ -78,8 +78,7 @@
             .setHTML('Welcome to Lake Oswego!');
 
         var popup_layer = new mapboxgl.Popup({ offset: 25, closeOnClick: true, closeButton: false })
-            .setHTML('<a href="https://acidixzz.github.io/portfolio/">Click me</a>')
-            .setLngLat([-122.64, 45.5])
+            .setHTML('<a href="https://en.wikipedia.org/wiki/Moda_Center">Click me to learn more about the Moda Center</a>')
             .addTo(map);
 
 
@@ -92,6 +91,11 @@
         var marker2 = new mapboxgl.Marker({ color: 'green' })
             .setLngLat([-122.67, 45.425])
             .setPopup(popup2)
+            .addTo(map);
+        
+        var popup_layer_marker = new mapboxgl.Marker({ color: 'blue' })
+            .setLngLat([-122.667236, 45.531609])
+            .setPopup(popup_layer)
             .addTo(map);
 
         // Add optional advanced "On load" function here
