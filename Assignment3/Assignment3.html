@@ -133,7 +133,9 @@
 
         var map = new mapboxgl.Map({
             container: 'map', // container id
-            style: 'mapbox://styles/owenwilson80/cmnz6cdk1003n01sh45d93xji' // stylesheet location
+            style: 'mapbox://styles/owenwilson80/cmnz6cdk1003n01sh45d93xji', // stylesheet location
+            zoom: 5,
+            center: [-122.6784, 45.51]
         });
 
         map.addControl(new mapboxgl.NavigationControl({
