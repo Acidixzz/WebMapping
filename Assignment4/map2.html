@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset='utf-8' />
+    <title>United States Temperature Map</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.20.0/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.20.0/mapbox-gl.css" rel="stylesheet">
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            opacity: 100%;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        /* added padding to the banner to get rid of the unused space 
+        from the top of the screen and made the text not opaque */
+        #banner {
+            position: absolute;
+            z-index: 9999;
+            background-color: rgba(255, 255, 255, 0.6);
+            text-align: center;
+            width: 100%;
+            padding-top: 1px;
+            padding-bottom: 1px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id='map'></div>
+    <div id='banner'>
+        <h1>World Earthquake Map</h1>
+        <h2>By: Owen Wilson</h2>
+    </div>
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1Ijoib3dlbndpbHNvbjgwIiwiYSI6ImNtbmdxamsyNzBkYzEyb29tMTc5Y2ZxZjQifQ.H80u2eqZMFKdGk-75Loj7w';
+
+        // initialize the map with my custom style at the center of the United States with a zoomed out view to see the entire country
+        var map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/owenwilson80/cmo9cfca0000401sp41mua7bb',
+            // Magnitude labels
+            // 1) I added the magnitude labels to the style. 
+            // 2) I did this to give the user more context to the map by showing the magnitude of each earthquake.
+            // Magnitude circles opacity
+            // 1) I changed the opacity of the circles to 0.6 from 0.2. 
+            // 2) I did this to make the circles more visible and easier to see since I also addd the corresponding magnitude as a visual as the user pans and zooms.
+            center: [-103.5917, 40.4168],
+            zoom: 1.5
+        });
+
+        // add the navigation control to the map
+        map.addControl(new mapboxgl.NavigationControl({
+            showCompass: false
+        }), 'bottom-left');
+        
+    </script>
+
+</body>
+
+</html>
