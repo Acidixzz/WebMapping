@@ -1,0 +1,120 @@
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+.map-main {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+}
+
+.overlay-inset {
+  position: fixed;
+  z-index: 15;
+  left: var(--left, 12px);
+  bottom: var(--bottom, 12px);
+  width: var(--card-w, clamp(190px, 22vw, 280px));
+}
+
+.overlay-map {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #d9e1ec;
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.22);
+}
+
+.overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.overlay-inset.is-dragging .overlay-header {
+  cursor: grabbing;
+}
+
+.overlay-map h2 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.close-button {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.overlay-map-frame {
+  width: 100%;
+  height: var(--frame-h, clamp(120px, 14vw, 180px));
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.overlay-inset.is-hidden {
+  display: none;
+}
+
+.overlay-inset.is-closing .overlay-map {
+  animation: inset-close 220ms ease forwards;
+}
+
+@keyframes inset-close {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+#map-hawaii .mapboxgl-ctrl-bottom-left,
+#map-hawaii .mapboxgl-ctrl-bottom-right,
+#map-alaska .mapboxgl-ctrl-bottom-left,
+#map-alaska .mapboxgl-ctrl-bottom-right {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .overlay-inset {
+    left: 12px !important;
+    width: min(240px, calc(100vw - 24px));
+  }
+
+  #inset-hawaii {
+    bottom: 12px !important;
+  }
+
+  #inset-alaska {
+    bottom: calc(var(--frame-h) + 72px) !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .overlay-inset {
+    left: 8px !important;
+    width: min(220px, calc(100vw - 16px));
+  }
+
+  #inset-hawaii {
+    bottom: 8px !important;
+  }
+
+  #inset-alaska {
+    bottom: calc(var(--frame-h) + 60px) !important;
+  }
+}

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web Mapping App</title>
+</head>
+
+<body>
+  <div id="map-main" class="map-main"></div>
+  <div id="inset-alaska" class="overlay-inset"
+    style="--left: 12px; --bottom: 12px; --card-w: clamp(235px, 24vw, 320px); --frame-h: clamp(150px, 17vw, 215px);">
+    <section id="overlay-alaska" class="overlay-map">
+      <div class="overlay-header">
+        <h2>Alaska</h2>
+        <button id="close-alaska" type="button" class="close-button" aria-label="Close Alaska inset">&times;</button>
+      </div>
+      <div id="map-alaska" class="overlay-map-frame"></div>
+    </section>
+  </div>
+
+  <div id="inset-hawaii" class="overlay-inset"
+    style="--left: calc(24px + clamp(235px, 24vw, 320px)); --bottom: 12px; --card-w: clamp(190px, 20vw, 260px); --frame-h: clamp(120px, 13vw, 165px);">
+    <section id="overlay-hawaii" class="overlay-map">
+      <div class="overlay-header">
+        <h2>Hawaii</h2>
+        <button id="close-hawaii" type="button" class="close-button" aria-label="Close Hawaii inset">&times;</button>
+      </div>
+      <div id="map-hawaii" class="overlay-map-frame"></div>
+    </section>
+  </div>
+  <script type="module" src="/src/map.ts"></script>
+</body>
