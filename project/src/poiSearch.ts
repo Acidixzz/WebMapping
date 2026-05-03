@@ -378,7 +378,20 @@ async function fetchSearchBoxSuggest(
     throw new Error('Search Box suggest returned invalid JSON.')
   }
 
-  return data.suggestions ?? []
+  //remove duplicates since we only care about the business name
+  const seen = new Set<string>();
+  const filtered: SearchBoxSuggestion[] = [];
+
+  for (const item of data.suggestions) {
+    if (seen.has(item.name)) {
+      continue;
+    } else {
+      seen.add(item.name);
+      filtered.push(item);
+    }
+  }
+
+  return filtered ?? []
 }
 
 async function fetchForwardRaw(
