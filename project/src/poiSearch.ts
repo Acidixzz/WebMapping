@@ -11,16 +11,51 @@ import {
 import { US_STATE_SEARCH_ANCHORS } from './stateSearchAnchors'
 
 const SEARCH_BOX_FORWARD = 'https://api.mapbox.com/search/searchbox/v1/forward'
+const SEARCH_BOX_SUGGEST = 'https://api.mapbox.com/search/searchbox/v1/suggest'
 
 /** Space out Search Box calls to reduce 429 rate-limit risk (~50 per Add). */
 const REQUEST_GAP_MS = 90
 
+/** Debounce Mapbox `/suggest` while typing (separate from forward anchor batching). */
+const SUGGEST_DEBOUNCE_MS = 280
+
+/** Bias suggest results toward the continental US (lng, lat). */
+const US_SUGGEST_PROXIMITY = '-98,39'
+
 type SearchBoxProperties = {
   name?: string
+  address?: string
   full_address?: string
   mapbox_id?: string
   feature_type?: string
   place_formatted?: string
+  brand?: string[]
+  brand_id?: string[]
+  poi_category_ids?: string[]
+}
+
+/** From `/suggest` — used to narrow nationwide `/forward` results to a chain or category. */
+type SearchBoxSuggestion = {
+  name: string
+  name_preferred?: string
+  mapbox_id: string
+  feature_type: string
+  place_formatted: string
+  brand?: string[]
+  brand_id?: string[]
+  poi_category_ids?: string[]
+}
+
+/**
+ * When the user picks an autocomplete row, forward hits are filtered to features
+ * that share the same brand IDs, brand names, or POI category IDs when present.
+ */
+type PoiSelectionFilter = {
+  /** Human-readable label (e.g. brand or category name). */
+  label: string
+  brandNames: string[]
+  brandIds: string[]
+  poiCategoryIds: string[]
 }
 
 type SavedPoi = {
@@ -120,6 +155,70 @@ function displayName(query: string, props: SearchBoxProperties | undefined): str
   return `${props.name ?? query}${tail}`
 }
 
+function poiPopupPlaceTitle(query: string, props: SearchBoxProperties | undefined): string {
+  const n = props?.name?.trim()
+  return n && n.length > 0 ? n : query.trim()
+}
+
+/**
+ * Street/locality line for the popup. Strips a leading POI name from `full_address` when Mapbox
+ * returns "Name, street, city…" so the second line is not a duplicate of the title.
+ */
+function poiPopupAddressLine(
+  props: SearchBoxProperties | undefined,
+  placeTitle: string,
+): string {
+  if (!props) return ''
+
+  const title = placeTitle.trim()
+  const fa = props.full_address?.trim()
+  if (fa) {
+    const lowerFa = fa.toLowerCase()
+    const lowerTitle = title.toLowerCase()
+    const prefixed = `${title}, `
+    if (lowerFa.startsWith(prefixed.toLowerCase())) {
+      return fa.slice(prefixed.length).trim()
+    }
+    if (lowerTitle && lowerFa.startsWith(lowerTitle)) {
+      return fa.slice(title.length).replace(/^[, ]\s*/, '').trim()
+    }
+    if (!lowerTitle || lowerFa === lowerTitle) {
+      /* full_address is only the name — fall through */
+    } else {
+      return fa
+    }
+  }
+
+  const parts: string[] = []
+  if (props.address?.trim()) parts.push(props.address.trim())
+  if (props.place_formatted?.trim()) parts.push(props.place_formatted.trim())
+  return parts.join(', ')
+}
+
+function createPoiPopupElement(title: string, addressLine: string): HTMLElement {
+  const root = document.createElement('div')
+  root.style.maxWidth = '260px'
+
+  const head = document.createElement('div')
+  head.textContent = title
+  head.style.fontWeight = '600'
+  head.style.fontSize = '13px'
+  head.style.lineHeight = '1.3'
+  root.appendChild(head)
+
+  if (addressLine.trim().length > 0) {
+    const addr = document.createElement('div')
+    addr.textContent = addressLine
+    addr.style.marginTop = '6px'
+    addr.style.fontSize = '12px'
+    addr.style.lineHeight = '1.4'
+    addr.style.opacity = '0.88'
+    root.appendChild(addr)
+  }
+
+  return root
+}
+
 function isPoiFeature(props: SearchBoxProperties | undefined): boolean {
   return props?.feature_type === 'poi'
 }
@@ -150,6 +249,136 @@ function featureDedupeKey(
   if (props?.mapbox_id && props.mapbox_id.length > 0) return props.mapbox_id
   const [lng, lat] = feature.geometry.coordinates
   return `${lng.toFixed(5)},${lat.toFixed(5)}`
+}
+
+function normStr(s: string): string {
+  return s.trim().toLowerCase()
+}
+
+function brandsMatch(forwardBrand: string, wanted: string): boolean {
+  const a = normStr(forwardBrand)
+  const b = normStr(wanted)
+  if (!a || !b) return false
+  return a.includes(b) || b.includes(a)
+}
+
+/**
+ * Keeps forward results that align with the autocomplete row (brand / category / name).
+ */
+function forwardFeatureMatchesSelection(
+  props: SearchBoxProperties | undefined,
+  sel: PoiSelectionFilter,
+): boolean {
+  const ids = props?.brand_id ?? []
+  const names = props?.brand ?? []
+  const catIds = props?.poi_category_ids ?? []
+  const poiName = normStr(props?.name ?? '')
+
+  const checks: boolean[] = []
+
+  if (sel.brandIds.length > 0)
+    checks.push(sel.brandIds.some((id) => ids.includes(id)))
+
+  if (sel.brandNames.length > 0) {
+    checks.push(
+      sel.brandNames.some((want) => names.some((b) => brandsMatch(b, want))) ||
+      sel.brandNames.some((want) => poiName.includes(normStr(want))),
+    )
+  }
+
+  if (sel.poiCategoryIds.length > 0)
+    checks.push(sel.poiCategoryIds.some((id) => catIds.includes(id)))
+
+  if (checks.length === 0) return true
+  return checks.some(Boolean)
+}
+
+function poiFilterFromSuggestion(s: SearchBoxSuggestion): PoiSelectionFilter | null {
+  const brands =
+    s.brand?.filter((b): b is string => typeof b === 'string' && b.trim().length > 0) ?? []
+  const ids =
+    s.brand_id?.filter((b): b is string => typeof b === 'string' && b.length > 0) ?? []
+  const cats =
+    s.poi_category_ids?.filter((c): c is string => typeof c === 'string' && c.length > 0) ??
+    []
+
+  if (s.feature_type === 'category' && cats.length > 0) {
+    return {
+      label: s.name_preferred ?? s.name,
+      brandNames: [],
+      brandIds: [],
+      poiCategoryIds: cats,
+    }
+  }
+
+  if (s.feature_type === 'poi' && (ids.length > 0 || brands.length > 0)) {
+    return {
+      label: brands[0] ?? s.name_preferred ?? s.name,
+      brandNames: brands.length > 0 ? brands : [s.name_preferred ?? s.name],
+      brandIds: ids,
+      poiCategoryIds: cats,
+    }
+  }
+
+  if (s.feature_type === 'poi') {
+    const anchor = normStr(s.name_preferred ?? s.name)
+    if (anchor.length < 3) return null
+    return {
+      label: s.name_preferred ?? s.name,
+      brandNames: [s.name_preferred ?? s.name],
+      brandIds: [],
+      poiCategoryIds: cats,
+    }
+  }
+
+  return null
+}
+
+async function fetchSearchBoxSuggest(
+  query: string,
+  accessToken: string,
+  sessionToken: string,
+  signal?: AbortSignal,
+): Promise<SearchBoxSuggestion[]> {
+  const trimmed = query.trim()
+  if (trimmed.length < 2) return []
+
+  const params = new URLSearchParams({
+    access_token: accessToken,
+    q: trimmed,
+    session_token: sessionToken,
+    language: 'en',
+    limit: '8',
+    country: 'US',
+    proximity: US_SUGGEST_PROXIMITY,
+    bbox: US_MAINLAND_SEARCH_BBOX,
+    types: 'poi,category',
+  })
+
+  const url = `${SEARCH_BOX_SUGGEST}?${params}`
+  const res = await fetch(url, { signal })
+  const text = await res.text()
+
+  if (!res.ok) {
+    let detail = text.slice(0, 240)
+    try {
+      const parsed = JSON.parse(text) as { message?: string }
+      if (typeof parsed.message === 'string' && parsed.message.length > 0)
+        detail = parsed.message
+    } catch {
+      /* ignore */
+    }
+    throw new Error(`Search Box suggest ${res.status}: ${detail}`)
+  }
+
+  let data: { suggestions?: SearchBoxSuggestion[] }
+  try {
+    data = JSON.parse(text) as { suggestions?: SearchBoxSuggestion[] }
+  } catch {
+    throw new Error('Search Box suggest returned invalid JSON.')
+  }
+
+  return data.suggestions ?? []
 }
 
 async function fetchForwardRaw(
@@ -294,6 +523,20 @@ async function searchAllStateAnchors(
   }
 }
 
+function formatSuggestionSubtitle(s: SearchBoxSuggestion): string {
+  const parts: string[] = []
+  if (s.feature_type === 'category') parts.push('Category')
+  else if (s.feature_type === 'poi') parts.push('Place')
+
+  const brandJoined = (s.brand ?? [])
+    .filter((b): b is string => typeof b === 'string' && b.length > 0)
+    .slice(0, 1)
+    .join(' · ')
+  if (brandJoined) parts.push(brandJoined)
+
+  return parts.join(' · ')
+}
+
 export function initPoiSearch(
   mainMap: mapboxgl.Map,
   hawaiiMap: mapboxgl.Map,
@@ -304,11 +547,240 @@ export function initPoiSearch(
   const addBtn = document.querySelector<HTMLButtonElement>('#poi-add-button')
   const status = document.querySelector<HTMLElement>('#poi-search-status')
   const list = document.querySelector<HTMLUListElement>('#poi-saved-list')
+  const wrap = document.querySelector<HTMLElement>('#poi-search-wrap')
+  const suggestList = document.querySelector<HTMLUListElement>('#poi-suggest-list')
+  const filterHint = document.querySelector<HTMLElement>('#poi-brand-filter-hint')
+  const filterText = document.querySelector<HTMLElement>('#poi-brand-filter-text')
+  const clearFilterBtn =
+    document.querySelector<HTMLButtonElement>('#poi-clear-suggest-filter')
 
-  if (!input || !addBtn || !status || !list) return
+  if (
+    !input ||
+    !addBtn ||
+    !status ||
+    !list ||
+    !wrap ||
+    !suggestList ||
+    !filterHint ||
+    !filterText ||
+    !clearFilterBtn
+  ) {
+    return
+  }
+
+  const poiInput = input
+  const poiAddBtn = addBtn
+  const poiStatus = status
+  const poiSavedList = list
+  const poiSuggestList = suggestList
+  const poiFilterHint = filterHint
+  const poiFilterText = filterText
+  const poiClearFilterBtn = clearFilterBtn
+  const poiWrap = wrap
 
   const saved = new Map<string, SavedPoi>()
   const queryBatches = new Map<string, QueryBatch>()
+
+  let poiSelectionFilter: PoiSelectionFilter | null = null
+  let suggestSessionToken = crypto.randomUUID()
+  let suggestDebounce: ReturnType<typeof setTimeout> | undefined
+  let suggestAbort: AbortController | null = null
+  let lastSuggestions: SearchBoxSuggestion[] = []
+  let activeSuggestIndex = -1
+
+  /** `requestAnimationFrame` id for syncing popover geometry while scrolling/resizing */
+  let syncSuggestRafId = 0
+
+  function syncSuggestPopoverPosition(): void {
+    if (poiSuggestList.classList.contains('hidden')) return
+
+    const anchor = poiWrap.getBoundingClientRect()
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const margin = 8
+    const gap = 4
+
+    let left = anchor.left
+    let width = anchor.width
+
+    if (left < margin) {
+      width -= margin - left
+      left = margin
+    }
+    const maxRight = vw - margin
+    if (left + width > maxRight) width = Math.max(120, maxRight - left)
+
+    const top = anchor.bottom + gap
+    const maxBottom = vh - margin
+    const maxHeight = Math.min(13 * 16, Math.max(96, maxBottom - top))
+
+    Object.assign(poiSuggestList.style, {
+      position: 'fixed',
+      left: `${left}px`,
+      top: `${top}px`,
+      width: `${width}px`,
+      maxHeight: `${maxHeight}px`,
+      zIndex: '9999',
+    })
+  }
+
+  function scheduleSuggestPopoverSync(): void {
+    if (poiSuggestList.classList.contains('hidden')) return
+    if (syncSuggestRafId !== 0) cancelAnimationFrame(syncSuggestRafId)
+    syncSuggestRafId = requestAnimationFrame(() => {
+      syncSuggestRafId = 0
+      syncSuggestPopoverPosition()
+    })
+  }
+
+  function refreshFilterHint(): void {
+    if (!poiSelectionFilter) {
+      poiFilterHint.classList.add('hidden')
+      poiFilterText.textContent = ''
+      return
+    }
+
+    poiFilterHint.classList.remove('hidden')
+    poiFilterText.textContent = `Autocomplete filter: ${poiSelectionFilter.label}. Only POIs matching this choice are added.`
+  }
+
+  function clearPoiSelectionFilter(): void {
+    poiSelectionFilter = null
+    refreshFilterHint()
+    suggestSessionToken = crypto.randomUUID()
+  }
+
+  function closeSuggestUi(): void {
+    if (suggestDebounce !== undefined) {
+      window.clearTimeout(suggestDebounce)
+      suggestDebounce = undefined
+    }
+
+    suggestAbort?.abort()
+    suggestAbort = null
+
+    if (syncSuggestRafId !== 0) {
+      cancelAnimationFrame(syncSuggestRafId)
+      syncSuggestRafId = 0
+    }
+
+    poiSuggestList.replaceChildren()
+    poiSuggestList.classList.add('hidden')
+    poiInput.setAttribute('aria-expanded', 'false')
+
+    lastSuggestions = []
+    activeSuggestIndex = -1
+  }
+
+  function updateSuggestHighlight(): void {
+    const buttons = poiSuggestList.querySelectorAll<HTMLButtonElement>('button[role="option"]')
+    buttons.forEach((btn, idx) => {
+      btn.classList.toggle('bg-base-200', idx === activeSuggestIndex)
+      btn.toggleAttribute('aria-selected', idx === activeSuggestIndex)
+    })
+    const cur = buttons[activeSuggestIndex]
+    cur?.scrollIntoView({ block: 'nearest' })
+  }
+
+  function renderSuggestions(items: SearchBoxSuggestion[]): void {
+    poiSuggestList.replaceChildren()
+    lastSuggestions = items
+
+    activeSuggestIndex = items.length ? 0 : -1
+
+    for (let idx = 0; idx < items.length; idx += 1) {
+      const s = items[idx]
+      const li = document.createElement('li')
+      li.setAttribute('role', 'none')
+
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.setAttribute('role', 'option')
+      btn.setAttribute(
+        'aria-selected',
+        idx === activeSuggestIndex ? 'true' : 'false',
+      )
+      btn.className =
+        'flex w-full cursor-pointer flex-col gap-0.5 rounded px-2 py-1.5 text-left text-[13px] hover:bg-base-200'
+      if (idx === activeSuggestIndex) btn.classList.add('bg-base-200')
+
+      const title = s.name_preferred ?? s.name
+      const line1 = document.createElement('span')
+      line1.className = 'truncate font-medium text-base-content'
+      line1.textContent = title
+
+      const line2 = document.createElement('span')
+      line2.className = 'truncate text-[10px] leading-tight text-base-content/60'
+      line2.textContent = formatSuggestionSubtitle(s)
+
+      btn.append(line1, line2)
+
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault()
+      })
+      btn.addEventListener('click', () => {
+        applySuggestion(s)
+      })
+
+      li.appendChild(btn)
+      poiSuggestList.appendChild(li)
+    }
+  }
+
+  function applySuggestion(s: SearchBoxSuggestion): void {
+    poiInput.value = s.name_preferred ?? s.name
+    poiSelectionFilter = poiFilterFromSuggestion(s)
+    refreshFilterHint()
+    closeSuggestUi()
+    suggestSessionToken = crypto.randomUUID()
+  }
+
+  function scheduleSuggest(): void {
+    if (suggestDebounce !== undefined) window.clearTimeout(suggestDebounce)
+
+    suggestDebounce = window.setTimeout(() => {
+      suggestDebounce = undefined
+      void loadSuggestions()
+    }, SUGGEST_DEBOUNCE_MS)
+  }
+
+  async function loadSuggestions(): Promise<void> {
+    const q = poiInput.value.trim()
+    if (q.length < 2) {
+      closeSuggestUi()
+      return
+    }
+
+    suggestAbort?.abort()
+    suggestAbort = new AbortController()
+    const { signal } = suggestAbort
+
+    try {
+      const items = await fetchSearchBoxSuggest(
+        q,
+        accessToken,
+        suggestSessionToken,
+        signal,
+      )
+
+      if (signal.aborted || poiInput.value.trim() !== q) return
+
+      if (items.length === 0) {
+        closeSuggestUi()
+        return
+      }
+
+      renderSuggestions(items)
+      poiSuggestList.classList.remove('hidden')
+      poiInput.setAttribute('aria-expanded', 'true')
+      syncSuggestPopoverPosition()
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      if (e instanceof Error && e.name === 'AbortError') return
+      console.warn('[POI suggest]', e)
+      closeSuggestUi()
+    }
+  }
 
   function clearQueryBatch(runId: string, pillLi: HTMLLIElement): void {
     const batch = queryBatches.get(runId)
@@ -335,33 +807,56 @@ export function initPoiSearch(
     if (touchedHawaii) hawaiiMap.resize()
     if (touchedAlaska) alaskaMap.resize()
 
-    if (saved.size === 0) status.textContent = ''
+    if (saved.size === 0) poiStatus.textContent = ''
   }
 
   async function searchAndAdd(): Promise<void> {
-    const q = input.value.trim()
+    closeSuggestUi()
+
+    const q = poiInput.value.trim()
     if (!q) {
-      status.textContent = 'Enter a place to search.'
+      poiStatus.textContent = 'Enter a place to search.'
       return
     }
 
-    addBtn.disabled = true
-    status.textContent = `Searching ${US_STATE_SEARCH_ANCHORS.length} state anchors… 0/${US_STATE_SEARCH_ANCHORS.length}`
+    poiAddBtn.disabled = true
+    poiStatus.textContent = `Searching ${US_STATE_SEARCH_ANCHORS.length} state anchors… 0/${US_STATE_SEARCH_ANCHORS.length}`
+    poiClearFilterBtn.classList.add('hidden')
 
     try {
-      const { features, failedRequests, firstError } = await searchAllStateAnchors(
-        q,
-        accessToken,
-        (done, total) => {
-          status.textContent = `Searching state anchors… ${done}/${total}`
-        },
-      )
+      const {
+        features: mergedFeatures,
+        failedRequests,
+        firstError,
+      } = await searchAllStateAnchors(q, accessToken, (done, total) => {
+        poiStatus.textContent = `Searching state anchors… ${done}/${total}`
+      })
+
+      const narrowedFilter = poiSelectionFilter
+
+      const totalMerged = mergedFeatures.length
+      const features =
+        narrowedFilter === null
+          ? mergedFeatures
+          : mergedFeatures.filter((f) =>
+            forwardFeatureMatchesSelection(
+              f.properties as SearchBoxProperties,
+              narrowedFilter,
+            ),
+          )
+
+      const excludedByFilter = totalMerged - features.length
 
       if (features.length === 0) {
-        status.textContent =
-          failedRequests > 0 && firstError
-            ? `Search failed: ${firstError}`
-            : 'No points of interest found. Try a different search.'
+        if (totalMerged > 0 && narrowedFilter !== null) {
+          poiStatus.textContent =
+            'Every nationwide match was filtered out by your autocomplete choice. Clear the filter or pick a different suggestion.'
+        } else {
+          poiStatus.textContent =
+            failedRequests > 0 && firstError
+              ? `Search failed: ${firstError}`
+              : 'No points of interest found. Try a different search.'
+        }
         return
       }
 
@@ -381,6 +876,8 @@ export function initPoiSearch(
         const coords = feature.geometry.coordinates
         const [lng, lat] = coords
         const props = feature.properties
+        const popupTitle = poiPopupPlaceTitle(q, props)
+        const popupAddress = poiPopupAddressLine(props, popupTitle)
         const name = displayName(q, props)
         const stableId =
           props?.mapbox_id && props.mapbox_id.length > 0
@@ -404,7 +901,11 @@ export function initPoiSearch(
 
         const marker = new mapboxgl.Marker({ element: el })
           .setLngLat([lng, lat])
-          .setPopup(new mapboxgl.Popup({ offset: 14 }).setText(name))
+          .setPopup(
+            new mapboxgl.Popup({ offset: 14 }).setDOMContent(
+              createPoiPopupElement(popupTitle, popupAddress),
+            ),
+          )
           .addTo(targetMap)
 
         // make it so that the markers don't pop up if the zoom level is so far away and if the zoom is closer, we want to query for each county.
@@ -425,7 +926,7 @@ export function initPoiSearch(
       if (touchedAlaska) alaskaMap.resize()
 
       if (added === 0) {
-        status.textContent =
+        poiStatus.textContent =
           skippedDup > 0
             ? 'Those locations are already on the map.'
             : 'No new places to add.'
@@ -440,8 +941,13 @@ export function initPoiSearch(
           ? ` (${failedRequests} state request${failedRequests === 1 ? '' : 's'} failed — results may be incomplete.)`
           : ''
 
-      status.textContent =
-        `Added ${added} place${added === 1 ? '' : 's'} (${features.length} unique matches).${dupHint}${skipHint}${failHint}`
+      const autocompleteHint =
+        excludedByFilter > 0
+          ? ` (${excludedByFilter} excluded by autocomplete filter.)`
+          : ''
+
+      poiStatus.textContent =
+        `Added ${added} place${added === 1 ? '' : 's'} (${features.length} unique matches).${dupHint}${skipHint}${autocompleteHint}${failHint}`
 
       if (batchIds.length > 0) {
         queryBatches.set(runId, { queryLabel: q, ids: batchIds, hue: batchHue })
@@ -470,20 +976,97 @@ export function initPoiSearch(
           clearQueryBatch(runId, li)
         })
 
-        list.appendChild(li)
+        poiSavedList.appendChild(li)
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      status.textContent =
+      poiStatus.textContent =
         msg.length > 0 ? `Search failed: ${msg}` : 'Search failed. Check your connection and try again.'
       console.error(e)
     } finally {
-      addBtn.disabled = false
+      poiAddBtn.disabled = false;
+      poiClearFilterBtn.classList.remove('hidden')
+      clearPoiSelectionFilter();
+      setTimeout(() => {
+        poiStatus.textContent = ''
+      }, 2000)
     }
   }
 
-  addBtn.addEventListener('click', () => void searchAndAdd())
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') void searchAndAdd()
+  poiAddBtn.addEventListener('click', () => void searchAndAdd())
+
+  poiClearFilterBtn.addEventListener('click', () => {
+    clearPoiSelectionFilter()
+  })
+
+  poiInput.addEventListener('input', () => {
+    scheduleSuggest()
+  })
+
+  /** Keep focus on the search field while interacting with floating suggestions (popover is outside the wrap). */
+  poiSuggestList.addEventListener('mousedown', (e) => {
+    if (!poiSuggestList.classList.contains('hidden')) e.preventDefault()
+  })
+
+  window.addEventListener('resize', () => {
+    scheduleSuggestPopoverSync()
+  })
+  document.addEventListener(
+    'scroll',
+    () => {
+      scheduleSuggestPopoverSync()
+    },
+    true,
+  )
+
+  poiInput.addEventListener('keydown', (e) => {
+    const listOpen =
+      !poiSuggestList.classList.contains('hidden') && lastSuggestions.length > 0
+
+    if (listOpen && e.key === 'ArrowDown') {
+      e.preventDefault()
+      activeSuggestIndex = Math.min(
+        activeSuggestIndex + 1,
+        lastSuggestions.length - 1,
+      )
+      updateSuggestHighlight()
+      return
+    }
+
+    if (listOpen && e.key === 'ArrowUp') {
+      e.preventDefault()
+      activeSuggestIndex = Math.max(activeSuggestIndex - 1, 0)
+      updateSuggestHighlight()
+      return
+    }
+
+    if (listOpen && e.key === 'Escape') {
+      e.preventDefault()
+      closeSuggestUi()
+      return
+    }
+
+    if (e.key === 'Enter') {
+      if (listOpen && activeSuggestIndex >= 0) {
+        const pick = lastSuggestions[activeSuggestIndex]
+        if (pick) {
+          e.preventDefault()
+          applySuggestion(pick)
+          return
+        }
+      }
+      void searchAndAdd()
+      return
+    }
+  })
+
+  poiInput.addEventListener('blur', () => {
+    window.setTimeout(() => closeSuggestUi(), 120)
+  })
+
+  document.addEventListener('pointerdown', (e) => {
+    const t = e.target
+    if (!(t instanceof Node)) return
+    if (!(poiWrap.contains(t) || poiSuggestList.contains(t))) closeSuggestUi()
   })
 }

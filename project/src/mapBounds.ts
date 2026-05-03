@@ -18,9 +18,17 @@ export const ALASKA_BOUNDS: LngLatBoundsLike = [
   [-108.0, 72.8],
 ]
 
+/** `LngLatBoundsLike` unions several shapes — treat our bounds as opposite corners. */
+type BoundsCorners = readonly [[number, number], [number, number]]
+
+function boundsCorners(bounds: LngLatBoundsLike): BoundsCorners {
+  return bounds as BoundsCorners
+}
+
 function boundsToSearchBbox(bounds: LngLatBoundsLike): string {
-  const sw = bounds[0] as [number, number]
-  const ne = bounds[1] as [number, number]
+  const corners = boundsCorners(bounds)
+  const sw = corners[0]
+  const ne = corners[1]
   return `${sw[0]},${sw[1]},${ne[0]},${ne[1]}`
 }
 
@@ -44,7 +52,8 @@ export function lngLatInBounds(
   lat: number,
   bounds: LngLatBoundsLike,
 ): boolean {
-  const sw = bounds[0] as [number, number]
-  const ne = bounds[1] as [number, number]
+  const corners = boundsCorners(bounds)
+  const sw = corners[0]
+  const ne = corners[1]
   return lng >= sw[0] && lng <= ne[0] && lat >= sw[1] && lat <= ne[1]
 }

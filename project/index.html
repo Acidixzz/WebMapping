@@ -142,11 +142,20 @@
                 <p class="is-drawer-close:hidden">Points of interest</p>
               </summary>
               <div class="collapse-content is-drawer-close:hidden">
-                <div class="join join-horizontal mt-2 w-full">
-                  <input id="poi-search-input" type="search" autocomplete="off"
-                    class="input input-bordered join-item min-w-0 flex-1 text-sm" placeholder="Search places…" />
-                  <button type="button" id="poi-add-button" class="btn join-item shrink-0">Add</button>
+                <div id="poi-search-wrap" class="relative mt-2 w-full">
+                  <div class="join join-horizontal w-full">
+                    <input id="poi-search-input" type="search" autocomplete="off" aria-autocomplete="list"
+                      aria-controls="poi-suggest-list" aria-expanded="false"
+                      class="input input-bordered join-item min-w-0 flex-1 text-sm" placeholder="Search places…" />
+                    <button type="button" id="poi-add-button" class="btn join-item shrink-0">Add</button>
+                  </div>
                 </div>
+                <p id="poi-brand-filter-hint"
+                  class="mt-1 hidden flex min-h-[1.25rem] flex-row flex-wrap items-baseline gap-2 text-[11px] leading-snug text-base-content/70">
+                  <span id="poi-brand-filter-text"></span>
+                  <button type="button" id="poi-clear-suggest-filter"
+                    class="link link-hover text-[11px] font-normal underline-offset-2">Clear filter</button>
+                </p>
                 <p id="poi-search-status" class="mt-1 min-h-[1.25rem] text-xs opacity-80"></p>
                 <ul id="poi-saved-list" class="mt-2 flex flex-col gap-1"></ul>
               </div>
@@ -239,6 +248,11 @@
       </div>
     </div>
   </div>
+
+  <!-- Anchored under #poi-search-wrap via JS (fixed); lives outside scrolling drawer so it isn’t clipped. -->
+  <ul id="poi-suggest-list" role="listbox" aria-label="Place suggestions"
+    class="fixed z-[9999] hidden max-h-52 overflow-y-auto rounded-box border border-base-300 bg-base-100 p-1 text-sm shadow-lg">
+  </ul>
 
   <script type="module" src="/src/map.ts"></script>
   <script type="module" src="/src/Sidebar.ts"></script>

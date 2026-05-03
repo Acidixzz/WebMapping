@@ -105,6 +105,7 @@ function wireCurrencyMinMax(
 
   function pushDisplays(): void {
     coerce()
+    if (!minInp || !maxInp) return
     if (!editingMin) minInp.value = usdWhole.format(mn)
     if (!editingMax) maxInp.value = usdWhole.format(mx)
   }
