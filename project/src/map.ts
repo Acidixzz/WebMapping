@@ -1,26 +1,13 @@
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import './style.css'
+import { initPoiSearch } from './poiSearch'
+import { ALASKA_BOUNDS, HAWAII_BOUNDS, US_MAINLAND_BOUNDS } from './mapBounds'
 
 mapboxgl.accessToken =
   'pk.eyJ1Ijoib3dlbndpbHNvbjgwIiwiYSI6ImNtbmdxamsyNzBkYzEyb29tMTc5Y2ZxZjQifQ.H80u2eqZMFKdGk-75Loj7w'
 
 const styleUrl = 'mapbox://styles/owenwilson80/cmomgmhvc000l01pz68bngoth'
-
-const usMainlandBounds: mapboxgl.LngLatBoundsLike = [
-  [-132.0, 20.0],
-  [-60.0, 54.5],
-]
-
-const hawaiiBounds: mapboxgl.LngLatBoundsLike = [
-  [-162.4, 18.2],
-  [-153.6, 23.1],
-]
-
-const alaskaBounds: mapboxgl.LngLatBoundsLike = [
-  [-195.0, 50.2],
-  [-108.0, 72.8],
-]
 
 const mainMap = new mapboxgl.Map({
   container: 'map-main',
@@ -28,7 +15,7 @@ const mainMap = new mapboxgl.Map({
   center: [-98.58, 39.82],
   zoom: 4,
   minZoom: 4,
-  maxBounds: usMainlandBounds,
+  maxBounds: US_MAINLAND_BOUNDS,
 })
 
 mainMap.addControl(
@@ -41,20 +28,22 @@ mainMap.addControl(
 const hawaiiMap = new mapboxgl.Map({
   container: 'map-hawaii',
   style: styleUrl,
-  bounds: hawaiiBounds,
+  bounds: HAWAII_BOUNDS,
   fitBoundsOptions: { padding: 8 },
-  maxBounds: hawaiiBounds,
+  maxBounds: HAWAII_BOUNDS,
   minZoom: 4,
 })
 
 const alaskaMap = new mapboxgl.Map({
   container: 'map-alaska',
   style: styleUrl,
-  bounds: alaskaBounds,
+  bounds: ALASKA_BOUNDS,
   fitBoundsOptions: { padding: 8 },
-  maxBounds: alaskaBounds,
+  maxBounds: ALASKA_BOUNDS,
   minZoom: 0,
 })
+
+initPoiSearch(mainMap, hawaiiMap, alaskaMap, mapboxgl.accessToken)
 
 const hawaiiInset = document.querySelector<HTMLElement>('#inset-hawaii')
 const alaskaInset = document.querySelector<HTMLElement>('#inset-alaska')
@@ -62,6 +51,7 @@ const hawaiiClose = document.querySelector<HTMLButtonElement>('#close-hawaii')
 const alaskaClose = document.querySelector<HTMLButtonElement>('#close-alaska')
 const hawaiiHeader = document.querySelector<HTMLElement>('#inset-hawaii .overlay-header')
 const alaskaHeader = document.querySelector<HTMLElement>('#inset-alaska .overlay-header')
+const mapShell = document.querySelector<HTMLElement>('.map-shell')
 
 function wireInsetClose(
   inset: HTMLElement | null,
@@ -90,8 +80,9 @@ function wireInsetDrag(
   inset: HTMLElement | null,
   handle: HTMLElement | null,
   map: mapboxgl.Map,
+  boundsEl: HTMLElement | null,
 ): void {
-  if (!inset || !handle) return
+  if (!inset || !handle || !boundsEl) return
 
   const isMobileFormFactor = (): boolean =>
     window.matchMedia('(max-width: 700px), (pointer: coarse)').matches
@@ -110,9 +101,11 @@ function wireInsetDrag(
     const target = event.target as HTMLElement
     if (target.closest('.close-button')) return
 
+    const shellRect = boundsEl.getBoundingClientRect()
     const rect = inset.getBoundingClientRect()
-    inset.style.left = `${rect.left}px`
-    inset.style.top = `${rect.top}px`
+
+    inset.style.left = `${rect.left - shellRect.left}px`
+    inset.style.top = `${rect.top - shellRect.top}px`
     inset.style.bottom = 'auto'
 
     pointerId = event.pointerId
@@ -127,11 +120,13 @@ function wireInsetDrag(
   handle.addEventListener('pointermove', (event: PointerEvent) => {
     if (!isDragging || event.pointerId !== pointerId) return
 
-    const rect = inset.getBoundingClientRect()
-    const maxX = window.innerWidth - rect.width
-    const maxY = window.innerHeight - rect.height
-    const nextLeft = clamp(event.clientX - offsetX, 0, Math.max(maxX, 0))
-    const nextTop = clamp(event.clientY - offsetY, 0, Math.max(maxY, 0))
+    const shellRect = boundsEl.getBoundingClientRect()
+    const iw = inset.offsetWidth
+    const ih = inset.offsetHeight
+    const maxLeft = Math.max(shellRect.width - iw, 0)
+    const maxTop = Math.max(shellRect.height - ih, 0)
+    const nextLeft = clamp(event.clientX - offsetX - shellRect.left, 0, maxLeft)
+    const nextTop = clamp(event.clientY - offsetY - shellRect.top, 0, maxTop)
 
     inset.style.left = `${nextLeft}px`
     inset.style.top = `${nextTop}px`
@@ -151,10 +146,19 @@ function wireInsetDrag(
 
 wireInsetClose(hawaiiInset, hawaiiClose)
 wireInsetClose(alaskaInset, alaskaClose)
-wireInsetDrag(hawaiiInset, hawaiiHeader, hawaiiMap)
-wireInsetDrag(alaskaInset, alaskaHeader, alaskaMap)
+wireInsetDrag(hawaiiInset, hawaiiHeader, hawaiiMap, mapShell)
+wireInsetDrag(alaskaInset, alaskaHeader, alaskaMap, mapShell)
 
-window.addEventListener('resize', () => {
+function resizeMaps(): void {
+  mainMap.resize()
   hawaiiMap.resize()
   alaskaMap.resize()
+}
+
+const drawerToggle = document.querySelector<HTMLInputElement>('#app-drawer')
+drawerToggle?.addEventListener('change', () => {
+  resizeMaps()
+  window.setTimeout(resizeMaps, 220)
 })
+
+window.addEventListener('resize', resizeMaps)

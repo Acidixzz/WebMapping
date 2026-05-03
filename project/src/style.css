@@ -1,19 +1,60 @@
+@import "tailwindcss";
+@plugin "../node_modules/daisyui/index.js";
+
 body {
   margin: 0;
   padding: 0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
 
+/*
+ * Drawer: the inner panel has `w-80` / `bg-base-200`, but the `.drawer-side` grid cell
+ * can still show body background as a white strip. Paint and stretch the whole rail.
+ */
+.drawer > .drawer-side {
+  align-self: stretch;
+  background-color: var(--color-base-200);
+}
+
+.drawer > .drawer-side > :not(.drawer-overlay) {
+  align-self: stretch;
+}
+
+h1 {
+  font-weight: bold;
+  font-size: large;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+/* Map fills the drawer main column below the navbar */
+.map-shell {
+  position: relative;
+  flex: 1 1 0%;
+  min-height: 0;
+  width: 100%;
+}
+
 .map-main {
-  position: fixed;
+  position: absolute;
   inset: 0;
   width: 100%;
-  height: 100vh;
+  height: 100%;
+}
+
+.poi-marker {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  border: 2px solid var(--color-base-100);
+  background: var(--color-primary);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
 }
 
 .overlay-inset {
-  position: fixed;
-  z-index: 15;
+  position: absolute;
+  z-index: 35;
   left: var(--left, 12px);
   bottom: var(--bottom, 12px);
   width: var(--card-w, clamp(190px, 22vw, 280px));
@@ -44,16 +85,9 @@ body {
 .overlay-map h2 {
   margin: 0;
   font-size: 14px;
-  line-height: 1.2;
-}
-
-.close-button {
-  width: 26px;
-  height: 26px;
-  border: none;
-  background: transparent;
-  font-size: 20px;
-  cursor: pointer;
+  line-height: 1.25;
+  color: #0f172a;
+  font-weight: 600;
 }
 
 .overlay-map-frame {
@@ -76,6 +110,7 @@ body {
     opacity: 1;
     transform: translateY(0);
   }
+
   to {
     opacity: 0;
     transform: translateY(16px);
@@ -92,7 +127,7 @@ body {
 @media (max-width: 700px) {
   .overlay-inset {
     left: 12px !important;
-    width: min(240px, calc(100vw - 24px));
+    width: min(240px, calc(100% - 24px));
   }
 
   #inset-hawaii {
@@ -107,7 +142,7 @@ body {
 @media (max-width: 420px) {
   .overlay-inset {
     left: 8px !important;
-    width: min(220px, calc(100vw - 16px));
+    width: min(220px, calc(100% - 16px));
   }
 
   #inset-hawaii {
