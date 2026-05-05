@@ -120,13 +120,15 @@
       </div>
     </div>
 
+    <!-- Sidebar Drawer -->
     <div class="drawer-side z-20 max-lg:z-40 is-drawer-close:overflow-visible lg:min-h-dvh">
+      <!-- Drawer interaction element -->
       <label for="app-drawer" aria-label="close sidebar" class="drawer-overlay lg:pointer-events-none"></label>
       <div
         class="flex h-full min-h-dvh max-h-full bg-base-100 shrink-0 flex-col overflow-x-hidden overflow-y-auto is-drawer-close:w-24 is-drawer-open:w-80">
         <div class="flex flex-col gap-4 overflow-y-auto p-4">
+          
           <!-- Points of Interest -->
-
           <section>
             <details class="collapse border border-base-300">
               <summary class="collapse-title font-semibold flex flex-row items-center gap-3 text-nowrap">
@@ -162,6 +164,7 @@
             </details>
 
             <!-- highlight only states/counties that include all POIs toggle-->
+             <!-- maybe have all markers be put on a single layer so then i can toggle hide the layer itself withut removing the markers and adding them back if possible -->
           </section>
 
           <!-- Rent vs Mortgage selector -->
