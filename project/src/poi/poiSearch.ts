@@ -7,8 +7,8 @@ import {
   lngLatInBounds,
   US_MAINLAND_BOUNDS,
   US_MAINLAND_SEARCH_BBOX,
-} from './mapBounds'
-import { US_STATE_SEARCH_ANCHORS } from './stateSearchAnchors'
+} from '../geo/bounds'
+import { US_STATE_SEARCH_ANCHORS } from '../geo/stateAnchors'
 
 const SEARCH_BOX_FORWARD = 'https://api.mapbox.com/search/searchbox/v1/forward'
 const SEARCH_BOX_SUGGEST = 'https://api.mapbox.com/search/searchbox/v1/suggest'
@@ -29,6 +29,10 @@ type SearchBoxProperties = {
   mapbox_id?: string
   feature_type?: string
   place_formatted?: string
+  context?: {
+    region?: { name?: string }
+    district?: { name?: string }
+  }
   brand?: string[]
   brand_id?: string[]
   poi_category_ids?: string[]
@@ -63,6 +67,113 @@ type SavedPoi = {
   name: string
   marker: mapboxgl.Marker
   map: mapboxgl.Map
+}
+
+type PoiAdminArea = {
+  state: string
+  county: string
+}
+
+export type PoiCountsSnapshot = {
+  total: number
+  byState: Record<string, number>
+  byStateCounty: Record<string, Record<string, number>>
+  byQuery: Record<
+    string,
+    {
+      total: number
+      byState: Record<string, number>
+      byStateCounty: Record<string, Record<string, number>>
+    }
+  >
+}
+
+const UNKNOWN_STATE = 'Unknown state'
+const UNKNOWN_COUNTY = 'Unknown county'
+const poiAdminById = new Map<string, PoiAdminArea>()
+const poiQueryById = new Map<string, string>()
+
+function cleanLabel(v: string | undefined): string | undefined {
+  if (!v) return undefined
+  const out = v.trim()
+  return out.length > 0 ? out : undefined
+}
+
+function parseStateCountyFromPlaceFormatted(
+  placeFormatted: string | undefined,
+): PoiAdminArea {
+  const parts = (placeFormatted ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+
+  if (parts.length === 0) {
+    return { state: UNKNOWN_STATE, county: UNKNOWN_COUNTY }
+  }
+
+  const countryLike = /^(united states|usa|us)$/i
+  const lastIdx = countryLike.test(parts[parts.length - 1]) ? parts.length - 2 : parts.length - 1
+  const state = parts[lastIdx] ?? UNKNOWN_STATE
+
+  const county =
+    parts.find((p) =>
+      /(county|borough|parish|census area|municipality)$/i.test(p),
+    ) ?? UNKNOWN_COUNTY
+
+  return { state, county }
+}
+
+function poiAdminArea(props: SearchBoxProperties | undefined): PoiAdminArea {
+  const stateFromContext = cleanLabel(props?.context?.region?.name)
+  const countyFromContext = cleanLabel(props?.context?.district?.name)
+
+  if (stateFromContext && countyFromContext) {
+    return { state: stateFromContext, county: countyFromContext }
+  }
+
+  const fallback = parseStateCountyFromPlaceFormatted(props?.place_formatted)
+  return {
+    state: stateFromContext ?? fallback.state,
+    county: countyFromContext ?? fallback.county,
+  }
+}
+
+function emitPoiCountsChanged(): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new Event('poi-counts-changed'))
+}
+
+export function getPoiCountsSnapshot(): PoiCountsSnapshot {
+  const byState: Record<string, number> = {}
+  const byStateCounty: Record<string, Record<string, number>> = {}
+  const byQuery: PoiCountsSnapshot['byQuery'] = {}
+
+  for (const [id, area] of poiAdminById.entries()) {
+    byState[area.state] = (byState[area.state] ?? 0) + 1
+    const countyMap = (byStateCounty[area.state] ??= {})
+    countyMap[area.county] = (countyMap[area.county] ?? 0) + 1
+
+    const queryLabel = poiQueryById.get(id)
+    if (!queryLabel) continue
+
+    const queryCounts =
+      (byQuery[queryLabel] ??= {
+        total: 0,
+        byState: {},
+        byStateCounty: {},
+      })
+    queryCounts.total += 1
+    queryCounts.byState[area.state] = (queryCounts.byState[area.state] ?? 0) + 1
+    const queryCountyMap = (queryCounts.byStateCounty[area.state] ??= {})
+    queryCountyMap[area.county] = (queryCountyMap[area.county] ?? 0) + 1
+  }
+
+  return {
+    total: poiAdminById.size,
+    byState,
+    byStateCounty,
+    byQuery,
+  }
 }
 
 type QueryBatch = {
@@ -382,7 +493,7 @@ async function fetchSearchBoxSuggest(
   const seen = new Set<string>();
   const filtered: SearchBoxSuggestion[] = [];
 
-  for (const item of data.suggestions) {
+  for (const item of data.suggestions ?? []) {
     if (seen.has(item.name)) {
       continue;
     } else {
@@ -596,7 +707,7 @@ export function initPoiSearch(
 
   let poiSelectionFilter: PoiSelectionFilter | null = null
   let suggestSessionToken = crypto.randomUUID()
-  let suggestDebounce: ReturnType<typeof setTimeout> | undefined
+  let suggestDebounce: ReturnType<typeof window.setTimeout> | undefined
   let suggestAbort: AbortController | null = null
   let lastSuggestions: SearchBoxSuggestion[] = []
   let activeSuggestIndex = -1
@@ -799,6 +910,7 @@ export function initPoiSearch(
     const batch = queryBatches.get(runId)
     if (!batch) return
 
+    let removedAny = false
     let touchedMain = false
     let touchedHawaii = false
     let touchedAlaska = false
@@ -808,6 +920,9 @@ export function initPoiSearch(
       if (!poi) continue
       poi.marker.remove()
       saved.delete(id)
+      poiAdminById.delete(id)
+      poiQueryById.delete(id)
+      removedAny = true
       if (poi.map === mainMap) touchedMain = true
       else if (poi.map === hawaiiMap) touchedHawaii = true
       else if (poi.map === alaskaMap) touchedAlaska = true
@@ -821,6 +936,7 @@ export function initPoiSearch(
     if (touchedAlaska) alaskaMap.resize()
 
     if (saved.size === 0) poiStatus.textContent = ''
+    if (removedAny) emitPoiCountsChanged()
   }
 
   async function searchAndAdd(): Promise<void> {
@@ -892,6 +1008,7 @@ export function initPoiSearch(
         const popupTitle = poiPopupPlaceTitle(q, props)
         const popupAddress = poiPopupAddressLine(props, popupTitle)
         const name = displayName(q, props)
+        const adminArea = poiAdminArea(props)
         const stableId =
           props?.mapbox_id && props.mapbox_id.length > 0
             ? props.mapbox_id
@@ -925,6 +1042,8 @@ export function initPoiSearch(
         //once the search is complete, we want to highlight each state on the map that has all of the POIs inside.
 
         saved.set(stableId, { id: stableId, name, marker, map: targetMap })
+        poiAdminById.set(stableId, adminArea)
+        poiQueryById.set(stableId, q)
         batchIds.push(stableId)
 
         if (targetMap === mainMap) touchedMain = true
@@ -963,6 +1082,7 @@ export function initPoiSearch(
         `Added ${added} place${added === 1 ? '' : 's'} (${features.length} unique matches).${dupHint}${skipHint}${autocompleteHint}${failHint}`
 
       if (batchIds.length > 0) {
+        emitPoiCountsChanged()
         queryBatches.set(runId, { queryLabel: q, ids: batchIds, hue: batchHue })
 
         const li = document.createElement('li')
