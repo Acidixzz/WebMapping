@@ -13,8 +13,8 @@ import { setFilterContributions, type LayerContribution } from './filterStore'
 const SOURCE_ID = 'rentRange'
 
 /** Layer ids in the Mapbox Studio style. */
-const STATE_FILL_LAYER_ID = 'rent-state-14x3h1 (1)'
-const COUNTY_FILL_LAYER_ID = 'rent-county-4255ie (1)'
+const STATE_FILL_LAYER_ID = 'rent-state-fill'
+const COUNTY_FILL_LAYER_ID = 'rent-county-fill'
 const STATE_LINE_LAYER_ID = 'rent-state-14x3h1'
 const COUNTY_LINE_LAYER_ID = 'rent-county-4255ie'
 
