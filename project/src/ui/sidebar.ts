@@ -16,12 +16,12 @@ const HomeType = {
     HOME: 'home',
 } as const
 
-const RENT_FLOOR = 300
-const RENT_CEILING = 8000
+const RENT_FLOOR = 0
+const RENT_CEILING = 3000
 
-const MORTGAGE_FLOOR = 300
+const MORTGAGE_FLOOR = 0
 const MORTGAGE_CEILING = 12000
-const MORTGAGE_DEFAULT_MAX = 1200
+const MORTGAGE_DEFAULT_MAX = 12000
 
 export function initSidebar(): void {
     wireHomeTypeRadio()

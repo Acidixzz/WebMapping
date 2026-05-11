@@ -84,6 +84,11 @@ export type PoiCountsSnapshot = {
       total: number
       byState: Record<string, number>
       byStateCounty: Record<string, Record<string, number>>
+      pillStyle: {
+        bg: string
+        fg: string
+        border: string
+      } | null
     }
   >
 }
@@ -92,6 +97,19 @@ const UNKNOWN_STATE = 'Unknown state'
 const UNKNOWN_COUNTY = 'Unknown county'
 const poiAdminById = new Map<string, PoiAdminArea>()
 const poiQueryById = new Map<string, string>()
+const poiPillStyleByQuery = new Map<
+  string,
+  {
+    bg: string
+    fg: string
+    border: string
+  }
+>()
+const countyByLngLatKey = new Map<string, string>()
+
+function lngLatKey(lng: number, lat: number): string {
+  return `${lng.toFixed(5)},${lat.toFixed(5)}`
+}
 
 function cleanLabel(v: string | undefined): string | undefined {
   if (!v) return undefined
@@ -143,6 +161,40 @@ function emitPoiCountsChanged(): void {
   window.dispatchEvent(new Event('poi-counts-changed'))
 }
 
+async function reverseGeocodeCounty(
+  lng: number,
+  lat: number,
+  accessToken: string,
+): Promise<string | null> {
+  const key = lngLatKey(lng, lat)
+  const cached = countyByLngLatKey.get(key)
+  if (cached) return cached
+
+  // Mapbox Geocoding: `district` is generally county-equivalent in the US.
+  const url =
+    `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json` +
+    `?types=district&limit=1&access_token=${encodeURIComponent(accessToken)}`
+
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const data = (await res.json()) as {
+      features?: Array<{ text?: string; place_name?: string }>
+    }
+    const f = data.features?.[0]
+    const county =
+      (typeof f?.text === 'string' && f.text.trim().length > 0 ? f.text.trim() : null) ??
+      (typeof f?.place_name === 'string' && f.place_name.trim().length > 0
+        ? f.place_name.split(',')[0]?.trim()
+        : null)
+    if (!county) return null
+    countyByLngLatKey.set(key, county)
+    return county
+  } catch {
+    return null
+  }
+}
+
 export function getPoiCountsSnapshot(): PoiCountsSnapshot {
   const byState: Record<string, number> = {}
   const byStateCounty: Record<string, Record<string, number>> = {}
@@ -161,6 +213,7 @@ export function getPoiCountsSnapshot(): PoiCountsSnapshot {
         total: 0,
         byState: {},
         byStateCounty: {},
+        pillStyle: poiPillStyleByQuery.get(queryLabel) ?? null,
       })
     queryCounts.total += 1
     queryCounts.byState[area.state] = (queryCounts.byState[area.state] ?? 0) + 1
@@ -675,6 +728,8 @@ export function initPoiSearch(
   const suggestList = document.querySelector<HTMLUListElement>('#poi-suggest-list')
   const filterHint = document.querySelector<HTMLElement>('#poi-brand-filter-hint')
   const filterText = document.querySelector<HTMLElement>('#poi-brand-filter-text')
+  const stateProgress =
+    document.querySelector<HTMLProgressElement>('#poi-state-progress')
   const clearFilterBtn =
     document.querySelector<HTMLButtonElement>('#poi-clear-suggest-filter')
 
@@ -687,6 +742,7 @@ export function initPoiSearch(
     !suggestList ||
     !filterHint ||
     !filterText ||
+    !stateProgress ||
     !clearFilterBtn
   ) {
     return
@@ -699,6 +755,7 @@ export function initPoiSearch(
   const poiSuggestList = suggestList
   const poiFilterHint = filterHint
   const poiFilterText = filterText
+  const poiStateProgress = stateProgress
   const poiClearFilterBtn = clearFilterBtn
   const poiWrap = wrap
 
@@ -929,6 +986,9 @@ export function initPoiSearch(
     }
 
     queryBatches.delete(runId)
+    if (!Array.from(queryBatches.values()).some((b) => b.queryLabel === batch.queryLabel)) {
+      poiPillStyleByQuery.delete(batch.queryLabel)
+    }
     pillLi.remove()
 
     if (touchedMain) mainMap.resize()
@@ -949,8 +1009,13 @@ export function initPoiSearch(
     }
 
     poiAddBtn.disabled = true
+    poiInput.disabled = true
+    poiInput.setAttribute('aria-disabled', 'true')
     poiStatus.textContent = `Searching ${US_STATE_SEARCH_ANCHORS.length} state anchors… 0/${US_STATE_SEARCH_ANCHORS.length}`
     poiClearFilterBtn.classList.add('hidden')
+    poiStateProgress.classList.remove('hidden')
+    poiStateProgress.max = US_STATE_SEARCH_ANCHORS.length
+    poiStateProgress.value = 0
 
     try {
       const {
@@ -959,6 +1024,8 @@ export function initPoiSearch(
         firstError,
       } = await searchAllStateAnchors(q, accessToken, (done, total) => {
         poiStatus.textContent = `Searching state anchors… ${done}/${total}`
+        poiStateProgress.max = total
+        poiStateProgress.value = done
       })
 
       const narrowedFilter = poiSelectionFilter
@@ -1046,6 +1113,18 @@ export function initPoiSearch(
         poiQueryById.set(stableId, q)
         batchIds.push(stableId)
 
+        // Fill in missing county via reverse geocoding (cached).
+        if (adminArea.county === UNKNOWN_COUNTY) {
+          void reverseGeocodeCounty(lng, lat, accessToken).then((county) => {
+            if (!county) return
+            const cur = poiAdminById.get(stableId)
+            if (!cur) return
+            if (cur.county !== UNKNOWN_COUNTY) return
+            poiAdminById.set(stableId, { ...cur, county })
+            emitPoiCountsChanged()
+          })
+        }
+
         if (targetMap === mainMap) touchedMain = true
         else if (targetMap === hawaiiMap) touchedHawaii = true
         else if (targetMap === alaskaMap) touchedAlaska = true
@@ -1084,6 +1163,11 @@ export function initPoiSearch(
       if (batchIds.length > 0) {
         emitPoiCountsChanged()
         queryBatches.set(runId, { queryLabel: q, ids: batchIds, hue: batchHue })
+        poiPillStyleByQuery.set(q, {
+          bg: batchStyles.pillBg,
+          fg: batchStyles.pillFg,
+          border: batchStyles.pillBorder,
+        })
 
         const li = document.createElement('li')
         li.className = 'flex w-fit max-w-full items-center gap-0.5'
@@ -1118,6 +1202,10 @@ export function initPoiSearch(
       console.error(e)
     } finally {
       poiAddBtn.disabled = false;
+      poiInput.disabled = false
+      poiInput.removeAttribute('aria-disabled')
+      poiStateProgress.classList.add('hidden')
+      poiStateProgress.value = 0
       poiClearFilterBtn.classList.remove('hidden')
       clearPoiSelectionFilter();
       setTimeout(() => {
@@ -1133,6 +1221,7 @@ export function initPoiSearch(
   })
 
   poiInput.addEventListener('input', () => {
+    if (poiInput.disabled) return
     scheduleSuggest()
   })
 
