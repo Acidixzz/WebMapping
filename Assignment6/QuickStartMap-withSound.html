@@ -17,6 +17,13 @@
 
     <style>
         /* CSS code between the <style> tags */
+
+        /* Customization 1 - changed marker button color */
+        :root {
+            --marker-button-color: #227844;
+            --marker-button-color-hover: #1c6439;
+        }
+
         body {
             margin: 0;
             padding: 0;
@@ -60,13 +67,23 @@
             text-align: center;
             font-weight: bold;
             color: oldlace;
-            background: DarkRed;
+            background-color: var(--marker-button-color);
             cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        /* Customization 2 - added a hover transition to the fly buttons */
+        .fly:hover {
+            background-color: var(--marker-button-color-hover);
         }
 
         /* Insert the CSS for the image here */
         .popupImage {
             width: 100%;
+        }
+
+        .map-marker {
+            cursor: pointer;
         }
 
         /* Insert the CSS for the button here */
@@ -95,6 +112,15 @@
             zoom: 13 // starting zoom 
         });
 
+        // Customization 3 - added full screen control and locater based on user's location
+        map.addControl(new mapboxgl.FullscreenControl({ container: document.querySelector('body') }));
+        map.addControl(new mapboxgl.GeolocateControl({
+            positionOptions: {
+                enableHighAccuracy: true
+            },
+            trackUserLocation: true,
+            showUserHeading: true
+        }));
         /***  POPUPS  ***/
 
         // Popup for marker 1  
@@ -130,24 +156,30 @@
 
         /***  MARKERS  ***/
         // Marker 1 - Portland
-        var marker1 = new mapboxgl.Marker({ color: 'DarkRed' })
+        var marker1 = new mapboxgl.Marker({ color: 'var(--marker-button-color)' })
             .setLngLat([-122.6788, 45.5212]) // Portland 
             .setPopup(popup1)
             .addTo(map);
 
+        marker1.getElement().classList.add('map-marker');
 
         // Marker 2 - London 
-        var marker2 = new mapboxgl.Marker({ color: 'DarkRed' })
+        var marker2 = new mapboxgl.Marker({ color: 'var(--marker-button-color)' })
             .setLngLat([-0.1534307, 51.501223]) // London 
             .setPopup(popup2)
             .addTo(map);
 
+        marker2.getElement().classList.add('map-marker');
+
 
         // Marker 3 - Yellowstone
-        var marker3 = new mapboxgl.Marker({ color: 'DarkRed' })
+        var marker3 = new mapboxgl.Marker({ color: 'var(--marker-button-color)' })
             .setLngLat([-110.74524187568, 44.706216445069]) // Yellowstone
             .setPopup(popup3)
             .addTo(map);
+
+        marker3.getElement().classList.add('map-marker');
+
         /***  END MARKERS  ***/
 
 
