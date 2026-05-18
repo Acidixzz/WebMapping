@@ -8,7 +8,9 @@ import {
   US_MAINLAND_BOUNDS,
   US_MAINLAND_SEARCH_BBOX,
 } from '../geo/bounds'
+import { pickCountyStateFromTileProps } from '../geo/countyMatch'
 import { US_STATE_SEARCH_ANCHORS } from '../geo/stateAnchors'
+import { RENT_COUNTY_FILL_LAYER_ID } from '../filters/rent'
 
 const SEARCH_BOX_FORWARD = 'https://api.mapbox.com/search/searchbox/v1/forward'
 const SEARCH_BOX_SUGGEST = 'https://api.mapbox.com/search/searchbox/v1/suggest'
@@ -96,6 +98,9 @@ export type PoiCountsSnapshot = {
 
 const UNKNOWN_STATE = 'Unknown state'
 const UNKNOWN_COUNTY = 'Unknown county'
+
+/** County choropleth is visible from this zoom; tile query is most reliable here. */
+const COUNTY_TILE_MIN_ZOOM = 6
 const poiAdminById = new Map<string, PoiAdminArea>()
 const poiQueryById = new Map<string, string>()
 const poiPillStyleByQuery = new Map<
@@ -166,6 +171,56 @@ function poiAdminArea(props: SearchBoxProperties | undefined): PoiAdminArea {
     state: stateFromContext ?? fallback.state,
     county: countyFromContext ?? fallback.county,
   }
+}
+
+function adminAreaFromCountyTiles(
+  map: mapboxgl.Map,
+  lng: number,
+  lat: number,
+): PoiAdminArea | null {
+  if (!map.isStyleLoaded() || !map.getLayer(RENT_COUNTY_FILL_LAYER_ID)) return null
+  const pt = map.project([lng, lat])
+  const feats = map.queryRenderedFeatures([pt.x, pt.y], {
+    layers: [RENT_COUNTY_FILL_LAYER_ID],
+  })
+  const props = feats[0]?.properties as Record<string, unknown> | undefined
+  return pickCountyStateFromTileProps(props)
+}
+
+/** Align POI admin labels with rent county tile names (fixes geocode vs NAMELSAD mismatches). */
+function refreshPoiAdminFromCountyTiles(map: mapboxgl.Map, ids: string[]): void {
+  const relevant = ids.filter((id) => saved.get(id)?.map === map)
+  if (relevant.length === 0) return
+
+  const apply = (): boolean => {
+    if (map.getZoom() < COUNTY_TILE_MIN_ZOOM) return false
+    let changed = false
+    for (const id of relevant) {
+      const poi = saved.get(id)
+      if (!poi) continue
+      const { lng, lat } = poi.marker.getLngLat()
+      const hit = adminAreaFromCountyTiles(map, lng, lat)
+      if (!hit) continue
+      const cur = poiAdminById.get(id)
+      if (!cur) continue
+      if (cur.state === hit.state && cur.county === hit.county) continue
+      poiAdminById.set(id, hit)
+      changed = true
+    }
+    if (changed) emitPoiCountsChanged()
+    return changed
+  }
+
+  if (apply()) return
+
+  const onZoom = (): void => {
+    if (map.getZoom() < COUNTY_TILE_MIN_ZOOM) return
+    if (apply()) map.off('zoomend', onZoom)
+  }
+  map.on('zoomend', onZoom)
+  map.once('idle', () => {
+    apply()
+  })
 }
 
 function emitPoiCountsChanged(): void {
@@ -1295,6 +1350,9 @@ export function initPoiSearch(
         })
 
         poiSavedList.appendChild(li)
+        refreshPoiAdminFromCountyTiles(mainMap, batchIds)
+        refreshPoiAdminFromCountyTiles(hawaiiMap, batchIds)
+        refreshPoiAdminFromCountyTiles(alaskaMap, batchIds)
         emitPoiCountsChanged()
         emitPoiVisibilityChanged()
       }

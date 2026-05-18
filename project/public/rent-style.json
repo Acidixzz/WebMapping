@@ -1,0 +1,241 @@
+{
+    "version": 8,
+    "name": "Rent",
+    "center": [
+        -34,
+        38
+    ],
+    "zoom": 2,
+    "lights": [],
+    "terrain": null,
+    "imports": [
+        {
+            "id": "basemap",
+            "url": "mapbox://styles/mapbox/standard",
+            "config": {
+                "showLandmarkIcons": false,
+                "showPlaceLabels": false,
+                "theme": "faded",
+                "showIndoor": false,
+                "showPointOfInterestLabels": true,
+                "lightPreset": "dawn",
+                "showTransitLabels": false,
+                "showAdminBoundaries": false,
+                "showRoadLabels": true
+            }
+        }
+    ],
+    "sources": {
+        "rent-states": {
+            "type": "vector",
+            "url": "mapbox://owenwilson80.7lt09s7a",
+            "promoteId": "rent_state_csv_GEO_ID"
+        },
+        "rent-counties": {
+            "type": "vector",
+            "url": "mapbox://owenwilson80.7rx5y3b1",
+            "promoteId": "GEO_ID"
+        }
+    },
+    "sprite": "mapbox://sprites/owenwilson80/cmomgmhvc000l01pz68bngoth/b8fjw435hx85pp7j172f016pl",
+    "glyphs": "mapbox://fonts/mapbox/{fontstack}/{range}.pbf",
+    "projection": {
+        "name": "mercator"
+    },
+    "layers": [
+        {
+            "id": "rent-county-fill",
+            "type": "fill",
+            "metadata": {
+                "mapbox:featureStateHandler": {
+                    "hover": "Hover"
+                }
+            },
+            "source": "rent-counties",
+            "source-layer": "rent_county-4255ie",
+            "slot": "",
+            "paint": {
+                "fill-color": [
+                    "case",
+                    [
+                        "to-boolean",
+                        [
+                            "feature-state",
+                            "hover"
+                        ]
+                    ],
+                    [
+                        "interpolate",
+                        [
+                            "linear"
+                        ],
+                        [
+                            "get",
+                            "median_rent"
+                        ],
+                        800,
+                        "#27ae60",
+                        1200,
+                        "#d4ac0d",
+                        1600,
+                        "#ca6f1e",
+                        2200,
+                        "#c0392b"
+                    ],
+                    [
+                        "interpolate",
+                        [
+                            "linear"
+                        ],
+                        [
+                            "get",
+                            "median_rent"
+                        ],
+                        800,
+                        "#2ecc71",
+                        1200,
+                        "#f1c40f",
+                        1600,
+                        "#e67e22",
+                        2200,
+                        "#e74c3c"
+                    ]
+                ],
+                "fill-opacity": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    8,
+                    1,
+                    9,
+                    0
+                ]
+            }
+        },
+        {
+            "id": "rent-state-fill",
+            "type": "fill",
+            "metadata": {
+                "mapbox:featureStateHandler": {
+                    "hover": "Hover"
+                }
+            },
+            "source": "rent-states",
+            "source-layer": "rent_state-14x3h1",
+            "slot": "",
+            "paint": {
+                "fill-color": [
+                    "case",
+                    [
+                        "boolean",
+                        [
+                            "feature-state",
+                            "hover"
+                        ],
+                        false
+                    ],
+                    [
+                        "interpolate",
+                        [
+                            "linear"
+                        ],
+                        [
+                            "get",
+                            "rent_state_csv_B25111_001E"
+                        ],
+                        800,
+                        "#27ae60",
+                        1200,
+                        "#d4ac0d",
+                        1600,
+                        "#ca6f1e",
+                        2200,
+                        "#c0392b"
+                    ],
+                    [
+                        "interpolate",
+                        [
+                            "linear"
+                        ],
+                        [
+                            "get",
+                            "rent_state_csv_B25111_001E"
+                        ],
+                        800,
+                        "#2ecc71",
+                        1200,
+                        "#f1c40f",
+                        1600,
+                        "#e67e22",
+                        2200,
+                        "#e74c3c"
+                    ]
+                ],
+                "fill-opacity": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    5,
+                    1,
+                    6,
+                    0
+                ],
+                "fill-outline-color": "#000000"
+            }
+        },
+        {
+            "id": "rent-state-14x3h1",
+            "type": "line",
+            "source": "rent-states",
+            "source-layer": "rent_state-14x3h1",
+            "slot": "",
+            "paint": {
+                "line-width": 2,
+                "line-opacity": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    5,
+                    1,
+                    6,
+                    0.3
+                ]
+            }
+        },
+        {
+            "id": "rent-county-4255ie",
+            "type": "line",
+            "source": "rent-counties",
+            "source-layer": "rent_county-4255ie",
+            "slot": "",
+            "paint": {
+                "line-width": 0.25,
+                "line-opacity": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    5,
+                    0,
+                    6,
+                    1
+                ]
+            }
+        }
+    ]
+}

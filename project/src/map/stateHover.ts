@@ -297,29 +297,14 @@ function fillSharedCountyContent(
     if (mList) mList.innerHTML = markersHtml
 }
 
-function positionHoverCard(screenX: number, screenY: number): void {
-    const card = document.getElementById('state-hover-card')
-    if (!card) return
-
-    const pad = 14
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    card.classList.remove('hidden')
-
-    const rect = card.getBoundingClientRect()
-    let left = screenX + pad
-    let top = screenY + pad
-    if (left + rect.width > vw - 8) left = Math.max(8, vw - rect.width - 8)
-    if (top + rect.height > vh - 8) top = Math.max(8, screenY - rect.height - pad)
-    if (left < 8) left = 8
-    if (top < 8) top = 8
-
-    card.style.left = `${left}px`
-    card.style.top = `${top}px`
+function showFeaturePanel(): void {
+    if (isPhoneLike()) return
+    document.getElementById('map-feature-panel')?.classList.remove('is-empty')
 }
 
-function hideHoverCard(): void {
-    document.getElementById('state-hover-card')?.classList.add('hidden')
+function resetFeaturePanel(): void {
+    if (isPhoneLike()) return
+    document.getElementById('map-feature-panel')?.classList.add('is-empty')
 }
 
 /** Cleared on dialog close so every map drops `hover` feature-state. */
@@ -351,8 +336,6 @@ function closeStateModalAndClearPhoneHover(allMaps: readonly MapboxMap[]): void 
 
 function wireStateHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): void {
     let hovered: FeatureStateTarget | null = null
-    let raf = 0
-    let pendingScreen: { x: number; y: number } | null = null
 
     const clearHover = (): void => {
         if (hovered) {
@@ -361,12 +344,7 @@ function wireStateHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): voi
             hovered = null
         }
         map.getCanvas().style.cursor = ''
-        hideHoverCard()
-        if (raf) {
-            cancelAnimationFrame(raf)
-            raf = 0
-        }
-        pendingScreen = null
+        resetFeaturePanel()
     }
 
     const applyHover = (feature: GeoJSONFeature): void => {
@@ -390,18 +368,6 @@ function wireStateHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): voi
         map.getCanvas().style.cursor = 'pointer'
     }
 
-    const flushCardPosition = (): void => {
-        raf = 0
-        if (!pendingScreen) return
-        positionHoverCard(pendingScreen.x, pendingScreen.y)
-    }
-
-    const scheduleCardPosition = (screenX: number, screenY: number): void => {
-        pendingScreen = { x: screenX, y: screenY }
-        if (raf) return
-        raf = requestAnimationFrame(flushCardPosition)
-    }
-
     map.on('mousemove', RENT_STATE_FILL_LAYER_ID, (e) => {
         if (isPhoneLike()) return
         const feature = e.features?.[0] as GeoJSONFeature | undefined
@@ -417,9 +383,7 @@ function wireStateHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): voi
                 ? String((props as Record<string, unknown>)['rent_state_csv_NAME'] ?? 'State')
                 : 'State'
         fillSharedStateContent(stateName, props)
-
-        const rect = map.getContainer().getBoundingClientRect()
-        scheduleCardPosition(rect.left + e.point.x, rect.top + e.point.y)
+        showFeaturePanel()
     })
 
     map.on('mouseleave', RENT_STATE_FILL_LAYER_ID, () => {
@@ -464,8 +428,6 @@ function wireStateHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): voi
 
 function wireCountyHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): void {
     let hovered: FeatureStateTarget | null = null
-    let raf = 0
-    let pendingScreen: { x: number; y: number } | null = null
 
     const clearHover = (): void => {
         if (hovered) {
@@ -474,12 +436,7 @@ function wireCountyHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): vo
             hovered = null
         }
         map.getCanvas().style.cursor = ''
-        hideHoverCard()
-        if (raf) {
-            cancelAnimationFrame(raf)
-            raf = 0
-        }
-        pendingScreen = null
+        resetFeaturePanel()
     }
 
     const applyHover = (feature: GeoJSONFeature): void => {
@@ -503,18 +460,6 @@ function wireCountyHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): vo
         map.getCanvas().style.cursor = 'pointer'
     }
 
-    const flushCardPosition = (): void => {
-        raf = 0
-        if (!pendingScreen) return
-        positionHoverCard(pendingScreen.x, pendingScreen.y)
-    }
-
-    const scheduleCardPosition = (screenX: number, screenY: number): void => {
-        pendingScreen = { x: screenX, y: screenY }
-        if (raf) return
-        raf = requestAnimationFrame(flushCardPosition)
-    }
-
     map.on('mousemove', RENT_COUNTY_FILL_LAYER_ID, (e) => {
         if (isPhoneLike()) return
 
@@ -531,9 +476,7 @@ function wireCountyHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): vo
         const countyName = countyNameFromProps(props)
         const stateName = stateNameFromCountyProps(props)
         fillSharedCountyContent(stateName, countyName, props)
-
-        const rect = map.getContainer().getBoundingClientRect()
-        scheduleCardPosition(rect.left + e.point.x, rect.top + e.point.y)
+        showFeaturePanel()
     })
 
     map.on('mouseleave', RENT_COUNTY_FILL_LAYER_ID, () => {

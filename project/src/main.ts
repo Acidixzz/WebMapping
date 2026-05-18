@@ -24,7 +24,7 @@ import { initPoiSearch } from './poi'
 import { initPoiGeographyFilter, registerFilterMaps } from './filters'
 import { initMapVisibility, initSidebar } from './ui'
 
-const trio = createMaps()
+const trio = await createMaps()
 const { mainMap, hawaiiMap, alaskaMap, mapboxAccessToken } = trio
 
 initPoiSearch(mainMap, hawaiiMap, alaskaMap, mapboxAccessToken)
