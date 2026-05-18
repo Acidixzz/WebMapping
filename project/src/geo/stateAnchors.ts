@@ -10,6 +10,7 @@ export type StateSearchAnchor = {
 
 /** US state capitals — lng/lat (WGS84). */
 export const US_STATE_SEARCH_ANCHORS: readonly StateSearchAnchor[] = [
+    //maybe change the anchors to be in the center of each states polygon to get more distributed results and better flyTo positioning
     { state: 'Alabama', lng: -86.3001, lat: 32.3668 },
     { state: 'Alaska', lng: -134.4197, lat: 58.3019 },
     { state: 'Arizona', lng: -112.074, lat: 33.4484 },
