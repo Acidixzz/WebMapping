@@ -26,6 +26,27 @@
         <!-- Main Map -->
         <div id="map-main" class="map-main"></div>
 
+        <aside id="map-legend" class="map-legend" aria-label="Map legend">
+          <h2 class="map-legend-title">Legend</h2>
+          <section class="map-legend-section" aria-labelledby="legend-rent-heading">
+            <h3 id="legend-rent-heading" class="map-legend-heading">Median rent</h3>
+            <div id="legend-rent-ramp" class="map-legend-ramp" aria-hidden="false">
+              <div id="legend-rent-ramp-bar" class="map-legend-ramp-bar" role="img"
+                aria-label="Median rent color scale from low to high"></div>
+              <div class="map-legend-ramp-labels">
+                <span id="legend-rent-min" class="map-legend-ramp-bound"></span>
+                <span id="legend-rent-max" class="map-legend-ramp-bound"></span>
+              </div>
+            </div>
+            <p id="legend-rent-footnote" class="map-legend-footnote">Applies to states and counties</p>
+          </section>
+          <section class="map-legend-section" aria-labelledby="legend-poi-heading">
+            <h3 id="legend-poi-heading" class="map-legend-heading">Points of interest</h3>
+            <ul id="legend-poi-list" class="map-legend-poi"></ul>
+            <p id="legend-poi-empty" class="map-legend-empty hidden">No searches yet.</p>
+          </section>
+        </aside>
+
         <!-- Alaska Map -->
         <div id="inset-alaska" class="overlay-inset"
           style="--left: 12px; --bottom: 12px; --card-w: clamp(235px, 24vw, 320px); --frame-h: clamp(150px, 17vw, 215px);">
@@ -125,22 +146,24 @@
       <!-- Drawer interaction element -->
       <label for="app-drawer" aria-label="close sidebar" class="drawer-overlay lg:pointer-events-none"></label>
       <div
-        class="flex h-full min-h-dvh max-h-full bg-base-100 shrink-0 flex-col overflow-x-hidden overflow-y-auto is-drawer-close:w-24 is-drawer-open:w-80">
-        <div class="flex flex-col gap-4 overflow-y-auto p-4">
+        class="flex h-full min-h-dvh max-h-full shrink-0 flex-col gap-4 overflow-y-auto overflow-x-hidden bg-base-100 p-4 is-drawer-close:w-24 is-drawer-open:w-80 is-drawer-close:overflow-x-visible">
 
           <!-- Points of Interest -->
           <section>
             <details class="collapse border border-base-300">
               <summary class="collapse-title font-semibold flex flex-row items-center gap-3 text-nowrap">
-                <svg xmlns="http://www.w3.org/2000/svg" class="size-6 shrink-0" width="24" height="24"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round">
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                  <path d="M14.916 11.707a3 3 0 1 0 -2.916 2.293" />
-                  <path d="M11.991 21.485a1.994 1.994 0 0 1 -1.404 -.585l-4.244 -4.243a8 8 0 1 1 13.651 -5.351" />
-                  <path d="M15 18a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" />
-                  <path d="M20.2 20.2l1.8 1.8" />
-                </svg>
+                <span class="drawer-section-tip" data-tip="Points of interest" aria-label="Points of interest"
+                  tabindex="0">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="size-6 shrink-0" width="24" height="24"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" aria-hidden="true">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <path d="M14.916 11.707a3 3 0 1 0 -2.916 2.293" />
+                    <path d="M11.991 21.485a1.994 1.994 0 0 1 -1.404 -.585l-4.244 -4.243a8 8 0 1 1 13.651 -5.351" />
+                    <path d="M15 18a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" />
+                    <path d="M20.2 20.2l1.8 1.8" />
+                  </svg>
+                </span>
                 <p class="is-drawer-close:hidden">Points of interest</p>
               </summary>
               <div class="collapse-content is-drawer-close:hidden">
@@ -165,24 +188,24 @@
               </div>
             </details>
 
-            <!-- highlight only states/counties that include all POIs toggle-->
-            <!-- maybe have all markers be put on a single layer so then i can toggle hide the layer itself withut removing the markers and adding them back if possible -->
           </section>
 
           <!-- Rent vs Mortgage selector -->
 
           <section>
             <details class="collapse border border-base-300">
-              <summary class="collapse-title font-semibold flex flex-row items-center text-nowrap">
-                <svg xmlns="http://www.w3.org/2000/svg" class="mr-4 size-6 shrink-0" width="24" height="24"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round">
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                  <path d="M19 10l-7 -7l-9 9h2v7a2 2 0 0 0 2 2h6" />
-                  <path d="M9 21v-6a2 2 0 0 1 2 -2h2c.387 0 .748 .11 1.054 .3" />
-                  <path d="M21 15h-2.5a1.5 1.5 0 0 0 0 3h1a1.5 1.5 0 0 1 0 3h-2.5" />
-                  <path d="M19 21v1m0 -8v1" />
-                </svg>
+              <summary class="collapse-title font-semibold flex flex-row items-center gap-3 text-nowrap">
+                <span class="drawer-section-tip" data-tip="Home Type" aria-label="Home Type" tabindex="0">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="size-6 shrink-0" width="24" height="24"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" aria-hidden="true">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <path d="M19 10l-7 -7l-9 9h2v7a2 2 0 0 0 2 2h6" />
+                    <path d="M9 21v-6a2 2 0 0 1 2 -2h2c.387 0 .748 .11 1.054 .3" />
+                    <path d="M21 15h-2.5a1.5 1.5 0 0 0 0 3h1a1.5 1.5 0 0 1 0 3h-2.5" />
+                    <path d="M19 21v1m0 -8v1" />
+                  </svg>
+                </span>
                 <p class="is-drawer-close:hidden">Home Type</p>
               </summary>
               <div class="collapse-content is-drawer-close:hidden">
@@ -220,8 +243,9 @@
                     </div>
                   </div>
 
-                  <div
-                    class="rounded-box border border-base-300/80 bg-gradient-to-br from-base-100 to-base-200/80 p-3 shadow-sm backdrop-blur-sm">
+                  <!-- Re-enable when mortgage layer data is ready -->
+                  <div id="mortgage-budget-panel"
+                    class="hidden rounded-box border border-base-300/80 bg-gradient-to-br from-base-100 to-base-200/80 p-3 shadow-sm backdrop-blur-sm">
                     <div class="mb-3 flex items-baseline justify-between gap-2">
                       <span class="text-xs font-semibold tracking-wide text-base-content/80">Mortgage payment
                         band</span>
@@ -248,13 +272,55 @@
             </details>
           </section>
 
-          <!-- show alaska and hawaii -->
-          <!-- Legend -->
-          <!-- toggle each POI -->
-        </div>
+          <section>
+            <details id="map-display-details" class="collapse border border-base-300" open>
+              <summary class="collapse-title font-semibold flex flex-row items-center gap-3 text-nowrap">
+                <span class="drawer-section-tip" data-tip="Map display" aria-label="Map display" tabindex="0">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="size-6 shrink-0" aria-hidden="true">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <path d="M12 18.5l-3 -1.5l-6 3v-13l6 -3l6 3l6 -3v8" />
+                    <path d="M9 4v13" />
+                    <path d="M15 7v6.5" />
+                    <path d="M17.001 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+                    <path d="M19.001 15.5v1.5" />
+                    <path d="M19.001 21v1.5" />
+                    <path d="M22.032 17.25l-1.299 .75" />
+                    <path d="M17.27 20l-1.3 .75" />
+                    <path d="M15.97 17.25l1.3 .75" />
+                    <path d="M20.733 20l1.3 .75" />
+                  </svg>
+                </span>
+                <p class="is-drawer-close:hidden">Map display</p>
+              </summary>
+            <div class="collapse-content is-drawer-close:hidden">
+              <div class="mt-2 flex flex-col gap-2">
+                <label class="flex cursor-pointer items-center justify-between gap-3 py-1">
+                  <span class="text-sm">Legend</span>
+                  <input id="toggle-legend" type="checkbox" class="toggle toggle-sm" checked
+                    aria-label="Show legend on map" />
+                </label>
+                <label class="flex cursor-pointer items-center justify-between gap-3 py-1">
+                  <span class="text-sm">Alaska inset</span>
+                  <input id="toggle-alaska" type="checkbox" class="toggle toggle-sm" checked
+                    aria-label="Show Alaska inset map" />
+                </label>
+                <label class="flex cursor-pointer items-center justify-between gap-3 py-1">
+                  <span class="text-sm">Hawaii inset</span>
+                  <input id="toggle-hawaii" type="checkbox" class="toggle toggle-sm" checked
+                    aria-label="Show Hawaii inset map" />
+                </label>
+              </div>
+            </div>
+          </details>
+          </section>
+
       </div>
     </div>
   </div>
+
+  <div id="drawer-section-tooltip" class="drawer-section-tooltip pointer-events-none fixed z-[10050] hidden max-w-[14rem] rounded-md bg-neutral px-2.5 py-1.5 text-xs font-medium text-neutral-content shadow-lg" role="tooltip"></div>
 
   <!-- Anchored under #poi-search-wrap via JS (fixed); lives outside scrolling drawer so it isn’t clipped. -->
   <ul id="poi-suggest-list" role="listbox" aria-label="Place suggestions"

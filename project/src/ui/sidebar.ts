@@ -26,6 +26,7 @@ const MORTGAGE_DEFAULT_MAX = 12000
 export function initSidebar(): void {
     wireHomeTypeRadio()
     wireDrawer()
+    wireDrawerSectionTooltips()
     wireRentBudget()
     wireMortgageBudget()
 }
@@ -59,6 +60,7 @@ function wireDrawer(): void {
         document.querySelectorAll<HTMLDetailsElement>('details').forEach((e) => {
             if (drawer) e.classList.toggle('collapse-arrow', drawer.checked)
         })
+        document.getElementById('drawer-section-tooltip')?.classList.add('hidden')
     })
 
     document.querySelectorAll('summary').forEach((summary) => {
@@ -91,6 +93,65 @@ function wireRentBudget(): void {
             })
         },
     })
+}
+
+function isDrawerIconRail(): boolean {
+    const drawer = document.querySelector('.drawer')
+    if (drawer?.classList.contains('is-drawer-close')) return true
+    const panel = document.querySelector<HTMLElement>('.drawer-side > div')
+    if (!panel) return false
+    return panel.getBoundingClientRect().width < 120
+}
+
+function wireDrawerSectionTooltips(): void {
+    const tooltip = document.getElementById('drawer-section-tooltip')
+    const tips = document.querySelectorAll<HTMLElement>('.drawer-section-tip')
+    if (!tooltip || tips.length === 0) return
+
+    let activeTip: HTMLElement | null = null
+
+    const hide = (): void => {
+        activeTip = null
+        tooltip.classList.add('hidden')
+        tooltip.textContent = ''
+    }
+
+    const position = (anchor: HTMLElement): void => {
+        const rect = anchor.getBoundingClientRect()
+        const gap = 10
+        const left = Math.min(rect.right + gap, window.innerWidth - 8)
+        const top = rect.top + rect.height / 2
+        tooltip.style.left = `${left}px`
+        tooltip.style.top = `${top}px`
+        tooltip.style.transform = 'translateY(-50%)'
+    }
+
+    const show = (anchor: HTMLElement): void => {
+        if (!isDrawerIconRail()) return
+        const text = anchor.dataset.tip?.trim()
+        if (!text) return
+        activeTip = anchor
+        tooltip.textContent = text
+        tooltip.classList.remove('hidden')
+        position(anchor)
+    }
+
+    tips.forEach((tip) => {
+        tip.addEventListener('mouseenter', () => show(tip))
+        tip.addEventListener('focus', () => show(tip))
+        tip.addEventListener('mouseleave', () => {
+            if (activeTip === tip) hide()
+        })
+        tip.addEventListener('blur', () => {
+            if (activeTip === tip) hide()
+        })
+    })
+
+    window.addEventListener('scroll', () => {
+        if (activeTip) position(activeTip)
+    }, true)
+
+    document.getElementById('app-drawer')?.addEventListener('change', hide)
 }
 
 function wireMortgageBudget(): void {

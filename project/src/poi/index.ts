@@ -9,4 +9,14 @@
  *
  * Public surface stays in this barrel so callers don't reach into the file.
  */
-export { initPoiSearch, getPoiCountsSnapshot, type PoiCountsSnapshot } from './poiSearch'
+export {
+  initPoiSearch,
+  getPoiCountsSnapshot,
+  getVisiblePoiGeography,
+  getPoiLegendRows,
+  setPoiBatchVisible,
+  hasSavedPoi,
+  type PoiCountsSnapshot,
+  type PoiGeography,
+  type PoiLegendRow,
+} from './poiSearch'

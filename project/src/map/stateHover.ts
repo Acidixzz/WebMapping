@@ -1,50 +1,13 @@
-import type { DataDrivenPropertyValueSpecification, GeoJSONFeature, Map as MapboxMap } from 'mapbox-gl'
+import type { GeoJSONFeature, Map as MapboxMap } from 'mapbox-gl'
 import type { MapTrio } from './create'
 import {
     RENT_STATE_FILL_LAYER_ID,
-    RENT_STATE_LINE_LAYER_ID,
     RENT_COUNTY_FILL_LAYER_ID,
-    RENT_COUNTY_LINE_LAYER_ID,
     RENT_COUNTY_MEDIAN_RENT_PROPERTY,
     RENT_STATE_MEDIAN_RENT_PROPERTY,
 } from '../filters/rent'
 import { getPoiCountsSnapshot } from '../poi'
 import { US_STATE_SEARCH_ANCHORS } from '../geo/stateAnchors'
-
-const HOVER_DARKEN_T = 0.22
-
-const hoverBool: DataDrivenPropertyValueSpecification<boolean> = [
-    'boolean',
-    ['feature-state', 'hover'],
-    false,
-]
-
-const hoverAtLowZoom: DataDrivenPropertyValueSpecification<boolean> = [
-    'all',
-    hoverBool,
-    ['<=', ['zoom'], 5],
-]
-
-function wrapFillColorWithHover(baseFillColor: unknown): DataDrivenPropertyValueSpecification<string> {
-    const darkened: unknown = [
-        'interpolate-hcl',
-        ['linear'],
-        ['literal', HOVER_DARKEN_T],
-        0,
-        baseFillColor,
-        1,
-        '#000000',
-    ]
-    return ['case', hoverAtLowZoom, darkened, baseFillColor] as DataDrivenPropertyValueSpecification<string>
-}
-
-function wrapLineWidth(base: unknown): DataDrivenPropertyValueSpecification<number> {
-    return ['case', hoverBool, 3.25, base] as DataDrivenPropertyValueSpecification<number>
-}
-
-function wrapLineOpacity(base: unknown): DataDrivenPropertyValueSpecification<number> {
-    return ['case', hoverBool, 1, base] as DataDrivenPropertyValueSpecification<number>
-}
 
 type FeatureStateTarget = { source: string; sourceLayer?: string; id: string | number }
 
@@ -70,52 +33,6 @@ function sameTarget(a: FeatureStateTarget | null, b: FeatureStateTarget): boolea
 }
 
 let warnedMissingFeatureId = false
-
-function installStateFillHoverPaint(map: MapboxMap): void {
-    if (!map.isStyleLoaded()) return
-    if (!map.getLayer(RENT_STATE_FILL_LAYER_ID)) return
-
-    const base = map.getPaintProperty(RENT_STATE_FILL_LAYER_ID, 'fill-color')
-    if (base === undefined) return
-    try {
-        map.setPaintProperty(
-            RENT_STATE_FILL_LAYER_ID,
-            'fill-color',
-            wrapFillColorWithHover(base as unknown),
-        )
-    } catch {
-        /* Studio expression may reject nesting; line hover still applies. */
-    }
-}
-
-function installStateLineHoverPaint(map: MapboxMap): void {
-    if (!map.isStyleLoaded()) return
-    if (!map.getLayer(RENT_STATE_LINE_LAYER_ID)) return
-
-    const baseW = map.getPaintProperty(RENT_STATE_LINE_LAYER_ID, 'line-width')
-    const baseO = map.getPaintProperty(RENT_STATE_LINE_LAYER_ID, 'line-opacity')
-    try {
-        if (baseW !== undefined) {
-            map.setPaintProperty(RENT_STATE_LINE_LAYER_ID, 'line-width', wrapLineWidth(baseW as unknown))
-        } else {
-            map.setPaintProperty(RENT_STATE_LINE_LAYER_ID, 'line-width', wrapLineWidth(1))
-        }
-        if (baseO !== undefined) {
-            map.setPaintProperty(RENT_STATE_LINE_LAYER_ID, 'line-opacity', wrapLineOpacity(baseO as unknown))
-        }
-    } catch {
-        /* ignore */
-    }
-}
-
-function attachStyleLoadInstall(map: MapboxMap): void {
-    const run = (): void => {
-        installStateFillHoverPaint(map)
-        installStateLineHoverPaint(map)
-    }
-    map.on('style.load', run)
-    if (map.isStyleLoaded()) run()
-}
 
 function isPhoneLike(): boolean {
     if (typeof window === 'undefined') return false
@@ -485,8 +402,6 @@ function wireStateHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): voi
         raf = requestAnimationFrame(flushCardPosition)
     }
 
-    attachStyleLoadInstall(map)
-
     map.on('mousemove', RENT_STATE_FILL_LAYER_ID, (e) => {
         if (isPhoneLike()) return
         const feature = e.features?.[0] as GeoJSONFeature | undefined
@@ -599,26 +514,6 @@ function wireCountyHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): vo
         if (raf) return
         raf = requestAnimationFrame(flushCardPosition)
     }
-
-    // County outline hover is always active; fill-color wrapping remains state-only.
-    map.on('style.load', () => {
-        if (!map.isStyleLoaded()) return
-        if (!map.getLayer(RENT_COUNTY_LINE_LAYER_ID)) return
-        const baseW = map.getPaintProperty(RENT_COUNTY_LINE_LAYER_ID, 'line-width')
-        const baseO = map.getPaintProperty(RENT_COUNTY_LINE_LAYER_ID, 'line-opacity')
-        try {
-            map.setPaintProperty(
-                RENT_COUNTY_LINE_LAYER_ID,
-                'line-width',
-                wrapLineWidth(baseW !== undefined ? (baseW as unknown) : 1),
-            )
-            if (baseO !== undefined) {
-                map.setPaintProperty(RENT_COUNTY_LINE_LAYER_ID, 'line-opacity', wrapLineOpacity(baseO as unknown))
-            }
-        } catch {
-            /* ignore */
-        }
-    })
 
     map.on('mousemove', RENT_COUNTY_FILL_LAYER_ID, (e) => {
         if (isPhoneLike()) return

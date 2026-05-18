@@ -88,6 +88,7 @@ export type PoiCountsSnapshot = {
         bg: string
         fg: string
         border: string
+        markerFill: string
       } | null
     }
   >
@@ -103,8 +104,19 @@ const poiPillStyleByQuery = new Map<
     bg: string
     fg: string
     border: string
+    markerFill: string
   }
 >()
+
+type QueryBatch = {
+  queryLabel: string
+  ids: string[]
+  hue: number
+  visible: boolean
+}
+
+const saved = new Map<string, SavedPoi>()
+const queryBatches = new Map<string, QueryBatch>()
 const countyByLngLatKey = new Map<string, string>()
 
 function lngLatKey(lng: number, lat: number): string {
@@ -161,6 +173,95 @@ function emitPoiCountsChanged(): void {
   window.dispatchEvent(new Event('poi-counts-changed'))
 }
 
+function emitPoiVisibilityChanged(): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new Event('poi-visibility-changed'))
+}
+
+function isPoiIdVisible(id: string): boolean {
+  for (const batch of queryBatches.values()) {
+    if (batch.ids.includes(id)) return batch.visible
+  }
+  return true
+}
+
+function setBatchMarkersVisible(batch: QueryBatch, visible: boolean): void {
+  for (const id of batch.ids) {
+    const poi = saved.get(id)
+    if (!poi) continue
+    const el = poi.marker.getElement()
+    el.style.display = visible ? '' : 'none'
+    el.style.pointerEvents = visible ? '' : 'none'
+  }
+}
+
+export type PoiGeography = {
+  states: string[]
+  pairs: Array<{ state: string; county: string }>
+}
+
+export type PoiLegendRow = {
+  runId: string
+  label: string
+  markerFill: string
+  count: number
+  visible: boolean
+}
+
+/** States / counties that have at least one marker from a visible search batch. */
+export function getVisiblePoiGeography(): PoiGeography {
+  const states = new Set<string>()
+  const pairKeys = new Set<string>()
+  const pairs: Array<{ state: string; county: string }> = []
+
+  for (const batch of queryBatches.values()) {
+    if (!batch.visible) continue
+    for (const id of batch.ids) {
+      const area = poiAdminById.get(id)
+      if (!area) continue
+      states.add(area.state)
+      const key = `${area.state}\u0000${area.county}`
+      if (!pairKeys.has(key)) {
+        pairKeys.add(key)
+        pairs.push({ state: area.state, county: area.county })
+      }
+    }
+  }
+
+  return { states: [...states], pairs }
+}
+
+export function hasSavedPoi(): boolean {
+  return poiAdminById.size > 0
+}
+
+/** One legend row per saved search batch (includes hidden batches). */
+export function getPoiLegendRows(): PoiLegendRow[] {
+  const rows: PoiLegendRow[] = []
+  for (const [runId, batch] of queryBatches.entries()) {
+    const style = poiPillStyleByQuery.get(batch.queryLabel)
+    if (!style) continue
+    rows.push({
+      runId,
+      label: batch.queryLabel,
+      markerFill: style.markerFill,
+      count: batch.ids.length,
+      visible: batch.visible,
+    })
+  }
+  return rows
+}
+
+/** Show or hide a search batch: markers, legend row, and geography filter. */
+export function setPoiBatchVisible(runId: string, visible: boolean): void {
+  const batch = queryBatches.get(runId)
+  if (!batch || batch.visible === visible) return
+  batch.visible = visible
+  setBatchMarkersVisible(batch, visible)
+  emitPoiCountsChanged()
+  emitPoiVisibilityChanged()
+}
+
 async function reverseGeocodeCounty(
   lng: number,
   lat: number,
@@ -201,6 +302,7 @@ export function getPoiCountsSnapshot(): PoiCountsSnapshot {
   const byQuery: PoiCountsSnapshot['byQuery'] = {}
 
   for (const [id, area] of poiAdminById.entries()) {
+    if (!isPoiIdVisible(id)) continue
     byState[area.state] = (byState[area.state] ?? 0) + 1
     const countyMap = (byStateCounty[area.state] ??= {})
     countyMap[area.county] = (countyMap[area.county] ?? 0) + 1
@@ -221,19 +323,17 @@ export function getPoiCountsSnapshot(): PoiCountsSnapshot {
     queryCountyMap[area.county] = (queryCountyMap[area.county] ?? 0) + 1
   }
 
+  let total = 0
+  for (const id of poiAdminById.keys()) {
+    if (isPoiIdVisible(id)) total += 1
+  }
+
   return {
-    total: poiAdminById.size,
+    total,
     byState,
     byStateCounty,
     byQuery,
   }
-}
-
-type QueryBatch = {
-  queryLabel: string
-  ids: string[]
-  /** Hue in degrees; used to avoid picking a similar color to other active batches. */
-  hue: number
 }
 
 function escapeHtml(s: string): string {
@@ -759,9 +859,6 @@ export function initPoiSearch(
   const poiClearFilterBtn = clearFilterBtn
   const poiWrap = wrap
 
-  const saved = new Map<string, SavedPoi>()
-  const queryBatches = new Map<string, QueryBatch>()
-
   let poiSelectionFilter: PoiSelectionFilter | null = null
   let suggestSessionToken = crypto.randomUUID()
   let suggestDebounce: ReturnType<typeof window.setTimeout> | undefined
@@ -996,7 +1093,10 @@ export function initPoiSearch(
     if (touchedAlaska) alaskaMap.resize()
 
     if (saved.size === 0) poiStatus.textContent = ''
-    if (removedAny) emitPoiCountsChanged()
+    if (removedAny) {
+      emitPoiCountsChanged()
+      emitPoiVisibilityChanged()
+    }
   }
 
   async function searchAndAdd(): Promise<void> {
@@ -1161,12 +1261,12 @@ export function initPoiSearch(
         `Added ${added} place${added === 1 ? '' : 's'} (${features.length} unique matches).${dupHint}${skipHint}${autocompleteHint}${failHint}`
 
       if (batchIds.length > 0) {
-        emitPoiCountsChanged()
-        queryBatches.set(runId, { queryLabel: q, ids: batchIds, hue: batchHue })
+        queryBatches.set(runId, { queryLabel: q, ids: batchIds, hue: batchHue, visible: true })
         poiPillStyleByQuery.set(q, {
           bg: batchStyles.pillBg,
           fg: batchStyles.pillFg,
           border: batchStyles.pillBorder,
+          markerFill: batchStyles.markerFill,
         })
 
         const li = document.createElement('li')
@@ -1178,22 +1278,25 @@ export function initPoiSearch(
           `border-color:${batchStyles.pillBorder}`,
         ].join(';')
 
+        li.dataset.runId = runId
         li.innerHTML = `
           <span class="badge inline-flex min-w-0 items-center gap-1 border border-solid py-2 pl-3 pr-1" style="${pillStyle}">
             <span class="flex min-h-6 min-w-[4rem] max-w-[10rem] flex-1 items-center justify-center">
               <span class="w-full truncate text-center leading-none">${escapeHtml(q)}</span>
             </span>
-            <button type="button" class="inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-lg leading-none text-current hover:bg-transparent" aria-label="Remove markers for this search" title="Clear these points">×</button>
+            <button type="button" class="poi-batch-clear inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-lg leading-none text-current hover:bg-transparent" aria-label="Remove markers for this search" title="Clear these points">×</button>
           </span>
         `
 
-        const clearBtn = li.querySelector('button')
+        const clearBtn = li.querySelector('.poi-batch-clear')
         clearBtn?.addEventListener('click', (e) => {
           e.stopPropagation()
           clearQueryBatch(runId, li)
         })
 
         poiSavedList.appendChild(li)
+        emitPoiCountsChanged()
+        emitPoiVisibilityChanged()
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)

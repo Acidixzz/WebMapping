@@ -1,6 +1,34 @@
 import type { Map as MapboxMap } from 'mapbox-gl'
 import type { MapTrio } from './create'
 
+export type InsetId = 'alaska' | 'hawaii'
+
+const INSET_SELECTORS: Record<InsetId, string> = {
+    alaska: '#inset-alaska',
+    hawaii: '#inset-hawaii',
+}
+
+function insetEl(id: InsetId): HTMLElement | null {
+    return document.querySelector<HTMLElement>(INSET_SELECTORS[id])
+}
+
+function emitInsetVisibility(id: InsetId, visible: boolean): void {
+    window.dispatchEvent(
+        new CustomEvent('inset-visibility-changed', { detail: { id, visible } }),
+    )
+}
+
+export type SetInsetVisibleOptions = {
+    /** When false, show/hide immediately (e.g. initial drawer sync). Default true. */
+    animate?: boolean
+}
+
+export function isInsetVisible(id: InsetId): boolean {
+    const el = insetEl(id)
+    if (!el) return false
+    return !el.classList.contains('is-hidden')
+}
+
 /**
  * Wires the Hawaii / Alaska inset overlays:
  *   - Close button (animates out + hides)
@@ -57,21 +85,9 @@ function wireInsetClose(
     if (!inset || !closeButton) return
 
     closeButton.addEventListener('click', () => {
-        if (inset.classList.contains('is-hidden') || inset.classList.contains('is-closing')) {
-            return
-        }
-
-        void shrinkInsetByEl(inset).then(() => {
-            inset.classList.add('is-closing')
-
-            const onAnimationEnd = (): void => {
-                inset.classList.remove('is-closing')
-                inset.classList.add('is-hidden')
-                inset.removeEventListener('animationend', onAnimationEnd)
-            }
-
-            inset.addEventListener('animationend', onAnimationEnd)
-        })
+        const id = insetIdFromEl(inset)
+        if (!id) return
+        void hideInsetAnimated(inset, id)
     })
 }
 
@@ -354,6 +370,134 @@ async function shrinkInsetByEl(inset: HTMLElement): Promise<void> {
     meta.expandButton.setAttribute('aria-label', meta.ariaExpandLabel)
 
     await animateInsetFlip(inset, meta.map, 'shrink', snap)
+}
+
+const INSET_SHOW_HIDE_MS = 220
+
+function insetIdFromEl(inset: HTMLElement): InsetId | null {
+    if (inset.id === 'inset-alaska') return 'alaska'
+    if (inset.id === 'inset-hawaii') return 'hawaii'
+    return null
+}
+
+function prefersReducedInsetMotion(): boolean {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function resizeInsetMap(inset: HTMLElement): void {
+    const meta = insetExpandRegistry.find((r) => r.inset === inset)
+    if (!meta) return
+    scheduleInsetMapResize(meta.map)
+}
+
+function setInsetVisibleInstant(inset: HTMLElement, id: InsetId, visible: boolean): void {
+    inset.classList.remove('is-closing', 'is-opening')
+    inset.classList.toggle('is-hidden', !visible)
+    emitInsetVisibility(id, visible)
+    if (visible) resizeInsetMap(inset)
+}
+
+function onInsetCardAnimationEnd(
+    inset: HTMLElement,
+    animationName: 'inset-close' | 'inset-open',
+    done: () => void,
+): (ev: AnimationEvent) => void {
+    return (ev: AnimationEvent) => {
+        const card = inset.querySelector('.overlay-map')
+        if (ev.target !== card || ev.animationName !== animationName) return
+        done()
+    }
+}
+
+async function hideInsetAnimated(inset: HTMLElement, id: InsetId): Promise<void> {
+    if (inset.classList.contains('is-hidden') || inset.classList.contains('is-closing')) return
+
+    if (prefersReducedInsetMotion()) {
+        await shrinkInsetByEl(inset)
+        setInsetVisibleInstant(inset, id, false)
+        return
+    }
+
+    await shrinkInsetByEl(inset)
+    inset.classList.remove('is-opening')
+
+    return new Promise((resolve) => {
+        let settled = false
+        const settle = (): void => {
+            if (settled) return
+            settled = true
+            window.clearTimeout(fallback)
+            inset.removeEventListener('animationend', onEnd)
+            inset.classList.remove('is-closing')
+            inset.classList.add('is-hidden')
+            emitInsetVisibility(id, false)
+            resolve()
+        }
+
+        const onEnd = onInsetCardAnimationEnd(inset, 'inset-close', settle)
+        const fallback = window.setTimeout(settle, INSET_SHOW_HIDE_MS + 80)
+
+        inset.classList.add('is-closing')
+        inset.addEventListener('animationend', onEnd)
+    })
+}
+
+async function showInsetAnimated(inset: HTMLElement, id: InsetId): Promise<void> {
+    if (!inset.classList.contains('is-hidden')) return
+    if (inset.classList.contains('is-opening')) return
+
+    if (prefersReducedInsetMotion()) {
+        setInsetVisibleInstant(inset, id, true)
+        return
+    }
+
+    inset.classList.remove('is-closing', 'is-hidden')
+    inset.classList.add('is-opening')
+    void inset.offsetWidth
+
+    return new Promise((resolve) => {
+        let settled = false
+        const settle = (): void => {
+            if (settled) return
+            settled = true
+            window.clearTimeout(fallback)
+            inset.removeEventListener('animationend', onEnd)
+            inset.classList.remove('is-opening')
+            emitInsetVisibility(id, true)
+            resizeInsetMap(inset)
+            resolve()
+        }
+
+        const onEnd = onInsetCardAnimationEnd(inset, 'inset-open', settle)
+        const fallback = window.setTimeout(settle, INSET_SHOW_HIDE_MS + 80)
+
+        inset.addEventListener('animationend', onEnd)
+    })
+}
+
+/** Show or hide an inset card (does not remove the map instance). */
+export function setInsetVisible(
+    id: InsetId,
+    visible: boolean,
+    options?: SetInsetVisibleOptions,
+): void {
+    const el = insetEl(id)
+    if (!el) return
+
+    const animate = options?.animate !== false
+
+    if (visible) {
+        if (!el.classList.contains('is-hidden')) return
+        if (animate) void showInsetAnimated(el, id)
+        else setInsetVisibleInstant(el, id, true)
+        return
+    }
+
+    if (el.classList.contains('is-hidden')) return
+    if (animate) void hideInsetAnimated(el, id)
+    else {
+        void shrinkInsetByEl(el).then(() => setInsetVisibleInstant(el, id, false))
+    }
 }
 
 async function collapseOtherInset(keepOpen: HTMLElement): Promise<void> {

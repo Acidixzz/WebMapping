@@ -9,4 +9,5 @@
  */
 
 export { registerFilterMaps } from './filterStore'
+export { initPoiGeographyFilter } from './poiGeography'
 export { applyRentRange, clearRentRange, type RentRange } from './rent'

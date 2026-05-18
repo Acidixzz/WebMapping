@@ -13,17 +13,26 @@
 
 import './style.css'
 
-import { createMaps, wireInsets, wireMapResize, wireStateHoverMaps } from './map/'
+import {
+  createMaps,
+  initMapLegend,
+  wireInsets,
+  wireMapResize,
+  wireStateHoverMaps,
+} from './map/'
 import { initPoiSearch } from './poi'
-import { registerFilterMaps } from './filters'
-import { initSidebar } from './ui'
+import { initPoiGeographyFilter, registerFilterMaps } from './filters'
+import { initMapVisibility, initSidebar } from './ui'
 
 const trio = createMaps()
 const { mainMap, hawaiiMap, alaskaMap, mapboxAccessToken } = trio
 
 initPoiSearch(mainMap, hawaiiMap, alaskaMap, mapboxAccessToken)
+initPoiGeographyFilter(mainMap)
 wireStateHoverMaps(trio)
+initMapLegend()
 wireInsets(trio)
+initMapVisibility()
 wireMapResize(trio)
 registerFilterMaps(mainMap, hawaiiMap, alaskaMap)
 initSidebar()
