@@ -7,7 +7,7 @@ import {
     RENT_STATE_MEDIAN_RENT_PROPERTY,
 } from '../filters/rent'
 import { getPoiCountsSnapshot } from '../poi'
-import { US_STATE_SEARCH_ANCHORS } from '../geo/stateAnchors'
+import { US_STATE_FLY_ANCHORS } from '../geo/stateAnchors'
 
 type FeatureStateTarget = { source: string; sourceLayer?: string; id: string | number }
 
@@ -47,14 +47,14 @@ function escapeHtml(s: string): string {
         .replace(/"/g, '&quot;')
 }
 
-function formatMedianRent(raw: unknown): string {
+function formatMedianRent(raw: unknown): string[] {
     const n = Number(raw)
-    if (!Number.isFinite(n) || n <= 0) return 'Median gross rent not available for this polygon.'
-    return `Median gross rent (ACS): ${new Intl.NumberFormat('en-US', {
+    if (!Number.isFinite(n) || n <= 0) return ['Median gross rent not available for this polygon.']
+    return [`Median gross rent (ACS): `, `${new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
         maximumFractionDigits: 0,
-    }).format(n)}`
+    }).format(n)}`]
 }
 
 function resolveStateKeyForPoiCounts(stateName: string, byState: Record<string, number>): string | null {
@@ -186,17 +186,21 @@ function fillSharedStateContent(stateName: string, props: GeoJSONFeature['proper
 
     const titleEl = document.getElementById('state-hover-card-title')
     const rentEl = document.getElementById('state-hover-card-rent')
+    const rentNumberEl = document.getElementById('state-hover-card-rent-number')
     const listEl = document.getElementById('state-hover-card-markers')
     const mTitle = document.getElementById('state-hover-modal-title')
     const mRent = document.getElementById('state-hover-modal-rent')
+    const mRentNumber = document.getElementById('state-hover-modal-rent-number')
     const mList = document.getElementById('state-hover-modal-markers')
 
     const title = stateName
     if (titleEl) titleEl.textContent = title
-    if (rentEl) rentEl.textContent = rentText
+    if (rentEl) rentEl.textContent = rentText[0]
+    if (rentNumberEl) rentNumberEl.textContent = rentText.length > 1 ? rentText[1] : undefined
     if (listEl) listEl.innerHTML = markersHtml
     if (mTitle) mTitle.textContent = title
-    if (mRent) mRent.textContent = rentText
+    if (mRent) mRent.textContent = rentText[0]
+    if (mRentNumber) mRentNumber.textContent = rentText.length > 1 ? rentText[1] : undefined
     if (mList) mList.innerHTML = markersHtml
 }
 
@@ -283,17 +287,21 @@ function fillSharedCountyContent(
 
     const titleEl = document.getElementById('state-hover-card-title')
     const rentEl = document.getElementById('state-hover-card-rent')
+    const rentNumberEl = document.getElementById('state-hover-card-rent-number')
     const listEl = document.getElementById('state-hover-card-markers')
     const mTitle = document.getElementById('state-hover-modal-title')
     const mRent = document.getElementById('state-hover-modal-rent')
+    const mRentNumber = document.getElementById('state-hover-modal-rent-number')
     const mList = document.getElementById('state-hover-modal-markers')
 
     const title = `${countyName}, ${stateName}`
     if (titleEl) titleEl.textContent = title
-    if (rentEl) rentEl.textContent = rentText
+    if (rentEl) rentEl.textContent = rentText[0]
+    if (rentNumberEl) rentNumberEl.textContent = rentText.length > 1 ? rentText[1] : undefined
     if (listEl) listEl.innerHTML = markersHtml
     if (mTitle) mTitle.textContent = title
-    if (mRent) mRent.textContent = rentText
+    if (mRent) mRent.textContent = rentText[0]
+    if (mRentNumber) mRentNumber.textContent = rentText.length > 1 ? rentText[1] : undefined
     if (mList) mList.innerHTML = markersHtml
 }
 
@@ -403,7 +411,7 @@ function wireStateHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): voi
                 props && typeof props === 'object'
                     ? String((props as Record<string, unknown>)['rent_state_csv_NAME'] ?? '')
                     : ''
-            const anchor = US_STATE_SEARCH_ANCHORS.find((v) => v.state === stateName)
+            const anchor = US_STATE_FLY_ANCHORS.find((v) => v.state === stateName)
             if (anchor && map.getZoom() < 6) {
                 map.flyTo({ center: [anchor.lng, anchor.lat], zoom: 6 })
             }

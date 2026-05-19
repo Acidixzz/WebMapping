@@ -1,9 +1,7 @@
 import mapboxgl from 'mapbox-gl'
 import {
   ALASKA_BOUNDS,
-  ALASKA_SEARCH_BBOX,
   HAWAII_BOUNDS,
-  HAWAII_SEARCH_BBOX,
   lngLatInBounds,
   US_MAINLAND_BOUNDS,
   US_MAINLAND_SEARCH_BBOX,
@@ -542,12 +540,6 @@ function isPoiFeature(props: SearchBoxProperties | undefined): boolean {
   return props?.feature_type === 'poi'
 }
 
-function searchBboxForState(state: string): string {
-  if (state === 'Hawaii') return HAWAII_SEARCH_BBOX
-  if (state === 'Alaska') return ALASKA_SEARCH_BBOX
-  return US_MAINLAND_SEARCH_BBOX
-}
-
 function targetMapForLngLat(
   lng: number,
   lat: number,
@@ -821,15 +813,13 @@ async function searchAllStateAnchors(
     const anchor = US_STATE_SEARCH_ANCHORS[i]
     onProgress(i + 1, total)
 
-    const bbox = searchBboxForState(anchor.state)
-
     try {
       const batch = await searchBoxForwardAtProximity(
         query,
         accessToken,
         anchor.lng,
         anchor.lat,
-        bbox,
+        anchor.searchBbox,
       )
 
       for (const f of batch) {
