@@ -29,6 +29,10 @@ export function isInsetVisible(id: InsetId): boolean {
     return !el.classList.contains('is-hidden')
 }
 
+const isMobileFormFactor = (): boolean => {
+    return window.matchMedia('(max-width: 700px), (pointer: coarse)').matches;
+}
+
 /**
  * Wires the Hawaii / Alaska inset overlays:
  *   - Close button (animates out + hides)
@@ -102,9 +106,6 @@ function wireInsetDrag(
     boundsEl: HTMLElement | null,
 ): void {
     if (!inset || !handle || !boundsEl) return
-
-    const isMobileFormFactor = (): boolean =>
-        window.matchMedia('(max-width: 700px), (pointer: coarse)').matches
 
     let isDragging = false
     let pointerId = -1
@@ -210,6 +211,10 @@ type InsetExpandMeta = Readonly<{
     ariaShrinkLabel: string
 }>
 
+type ExpandMode = Readonly<
+    'expand' | 'shrink'
+>
+
 const insetExpandSavedLayout = new WeakMap<HTMLElement, InsetSavedLayout>()
 const insetExpandRegistry: InsetExpandMeta[] = []
 
@@ -267,9 +272,10 @@ function clearInsetFlipArtifacts(inset: HTMLElement): void {
 function animateInsetFlip(
     inset: HTMLElement,
     map: MapboxMap,
-    mode: 'expand' | 'shrink',
+    mode: ExpandMode,
     snap: InsetSavedLayout | undefined,
 ): Promise<void> {
+
     if (!prefersInsetFlipAnimation()) {
         if (mode === 'expand') {
             inset.classList.add('expanded')

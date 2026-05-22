@@ -9,10 +9,10 @@ export type RentLegendStop = {
 
 /** Normal (non-hover) choropleth stops — shared by states and counties. */
 export const MEDIAN_RENT_LEGEND_STOPS: readonly RentLegendStop[] = [
-    { value: 800, color: '#2ecc71' },
-    { value: 1200, color: '#f1c40f' },
-    { value: 1600, color: '#e67e22' },
-    { value: 2200, color: '#e74c3c' },
+    { value: 800, color: '#f3e79b' },
+    { value: 1200, color: '#f8a07e' },
+    { value: 1600, color: '#ce6693' },
+    { value: 2200, color: '#5c53a5' },
 ] as const
 
 /** Build a left-to-right CSS gradient matching Mapbox stop positions. */

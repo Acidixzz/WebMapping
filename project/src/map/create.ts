@@ -46,6 +46,7 @@ export async function createMaps(): Promise<MapTrio> {
     const mainMap = new mapboxgl.Map({
         container: 'map-main',
         style,
+        logoPosition: 'top-right',
         center: [-98.58, 39.82],
         zoom: 4,
         minZoom: 4,

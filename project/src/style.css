@@ -490,7 +490,14 @@ h1 {
   }
 
   #inset-alaska {
-    bottom: calc(var(--frame-h) + 72px) !important;
+    bottom: 96px !important;
+  }
+
+  .overlay-map-frame {
+    display: none
+  }
+  .expanded .overlay-map-frame {
+    display: flex
   }
 }
 
