@@ -30,6 +30,16 @@ jobs:
           cache: npm
           cache-dependency-path: project/package-lock.json
 
+      - name: Verify Mapbox token secret
+        env:
+          VITE_MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$VITE_MAPBOX_ACCESS_TOKEN" ]; then
+            echo "::error::Repository secret MAPBOX_ACCESS_TOKEN is missing or empty."
+            echo "Add your Mapbox public token (pk...) under Settings → Secrets and variables → Actions, then re-run this workflow."
+            exit 1
+          fi
+
       - name: Install and build
         working-directory: project
         env:
@@ -56,3 +66,8 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: App URL (not the root link above)
+        run: |
+          echo "## Where to open the app" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://${{ github.event.repository.owner.login }}.github.io/${{ github.event.repository.name }}/project/" >> "$GITHUB_STEP_SUMMARY"
