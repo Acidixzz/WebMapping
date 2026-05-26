@@ -34,15 +34,18 @@ jobs:
         working-directory: project
         env:
           VITE_MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
-          # https://<user>.github.io/<repo>/ — remove this line if you use a custom domain at site root
-          VITE_BASE_PATH: /${{ github.event.repository.name }}/
         run: |
           npm ci
-          npm run build
+          npm run build:pages
+
+      - name: Stage site under /project/
+        run: |
+          mkdir -p _site/project
+          cp -r project/dist/. _site/project/
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: project/dist
+          path: _site
 
   deploy:
     environment:
