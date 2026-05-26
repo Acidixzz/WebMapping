@@ -8,6 +8,10 @@
  *   3. Wire the UI to those functions.
  */
 
-export { registerFilterMaps } from './filterStore'
-export { initPoiGeographyFilter } from './poiGeography'
-export { applyRentRange, clearRentRange, type RentRange } from './rent'
+export { applyFiltersToAllMapsForce, registerFilterMaps } from './filterStore'
+export { initPoiGeographyFilter, refreshPoiGeographyFilter } from './poiGeography'
+export {
+    applyMetricRange,
+    clearMetricRange,
+    type MetricRange,
+} from './rent'

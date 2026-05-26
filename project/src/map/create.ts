@@ -1,24 +1,7 @@
-import mapboxgl, { type StyleSpecification } from 'mapbox-gl'
+import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { ALASKA_BOUNDS, HAWAII_BOUNDS, US_MAINLAND_BOUNDS } from '../geo/bounds'
-
-/** Published Studio style — set `VITE_MAPBOX_STYLE=remote` to use this instead of `public/rent-style.json`. */
-const REMOTE_STYLE_URL = 'mapbox://styles/owenwilson80/cmomgmhvc000l01pz68bngoth'
-
-const LOCAL_STYLE_PATH = `${import.meta.env.BASE_URL}rent-style.json`
-
-async function loadMapStyle(): Promise<string | StyleSpecification> {
-    const mode = import.meta.env.VITE_MAPBOX_STYLE?.trim().toLowerCase()
-    if (mode === 'remote') return REMOTE_STYLE_URL
-
-    const res = await fetch(LOCAL_STYLE_PATH)
-    if (!res.ok) {
-        throw new Error(
-            `Failed to load ${LOCAL_STYLE_PATH} (${res.status}). Place rent-style.json in public/ or set VITE_MAPBOX_STYLE=remote.`,
-        )
-    }
-    return (await res.json()) as StyleSpecification
-}
+import { loadInitialMapStyle } from './mapStyle'
 
 /** The three Mapbox map instances plus the access token used to create them. */
 export type MapTrio = {
@@ -41,7 +24,7 @@ export async function createMaps(): Promise<MapTrio> {
     }
     mapboxgl.accessToken = mapboxAccessToken
 
-    const style = await loadMapStyle()
+    const style = await loadInitialMapStyle()
 
     const mainMap = new mapboxgl.Map({
         container: 'map-main',

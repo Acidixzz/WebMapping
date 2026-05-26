@@ -1,11 +1,12 @@
 import type { GeoJSONFeature, Map as MapboxMap } from 'mapbox-gl'
 import type { MapTrio } from './create'
 import {
-    RENT_STATE_FILL_LAYER_ID,
-    RENT_COUNTY_FILL_LAYER_ID,
-    RENT_COUNTY_MEDIAN_RENT_PROPERTY,
-    RENT_STATE_MEDIAN_RENT_PROPERTY,
-} from '../filters/rent'
+    CHOROPLETH_COUNTY_FILL_LAYER_ID,
+    CHOROPLETH_STATE_FILL_LAYER_ID,
+    STATE_NAME_FIELD,
+    getActiveMetric,
+    getActiveValueField,
+} from './choroplethConfig'
 import { getPoiCountsSnapshot } from '../poi'
 import { US_STATE_FLY_ANCHORS } from '../geo/stateAnchors'
 
@@ -19,8 +20,8 @@ function featureStateTarget(feature: GeoJSONFeature): FeatureStateTarget | null 
     if (feature.id !== undefined && feature.id !== null) {
         return { source, sourceLayer, id: feature.id }
     }
-    const props = feature.properties as { GEOID?: string | number } | null | undefined
-    const geo = props?.GEOID
+    const props = feature.properties as { OBJECTID?: string | number; GEOID?: string | number } | null | undefined
+    const geo = props?.OBJECTID ?? props?.GEOID
     if (geo !== undefined && geo !== null && String(geo).length > 0) {
         return { source, sourceLayer, id: String(geo) }
     }
@@ -47,14 +48,21 @@ function escapeHtml(s: string): string {
         .replace(/"/g, '&quot;')
 }
 
-function formatMedianRent(raw: unknown): string[] {
+function formatMetricValue(raw: unknown): string[] {
     const n = Number(raw)
-    if (!Number.isFinite(n) || n <= 0) return ['Median gross rent not available for this polygon.']
-    return [`Median gross rent (ACS): `, `${new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        maximumFractionDigits: 0,
-    }).format(n)}`]
+    const label =
+        getActiveMetric() === 'mortgage'
+            ? 'Median mortgage payment'
+            : 'Median gross rent (ACS)'
+    if (!Number.isFinite(n) || n <= 0) return [`${label} not available for this polygon.`]
+    return [
+        `${label}: `,
+        new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            maximumFractionDigits: 0,
+        }).format(n),
+    ]
 }
 
 function resolveStateKeyForPoiCounts(stateName: string, byState: Record<string, number>): string | null {
@@ -177,10 +185,9 @@ function markerRowsHtml(stateName: string): string {
 }
 
 function fillSharedStateContent(stateName: string, props: GeoJSONFeature['properties']): void {
-    const rentText = formatMedianRent(
-        props && typeof props === 'object'
-            ? (props as Record<string, unknown>)[RENT_STATE_MEDIAN_RENT_PROPERTY]
-            : undefined,
+    const field = getActiveValueField()
+    const rentText = formatMetricValue(
+        props && typeof props === 'object' ? (props as Record<string, unknown>)[field] : undefined,
     )
     const markersHtml = markerRowsHtml(stateName)
 
@@ -196,11 +203,11 @@ function fillSharedStateContent(stateName: string, props: GeoJSONFeature['proper
     const title = stateName
     if (titleEl) titleEl.textContent = title
     if (rentEl) rentEl.textContent = rentText[0]
-    if (rentNumberEl) rentNumberEl.textContent = rentText.length > 1 ? rentText[1] : undefined
+    if (rentNumberEl) rentNumberEl.textContent = rentText.length > 1 ? rentText[1] : null
     if (listEl) listEl.innerHTML = markersHtml
     if (mTitle) mTitle.textContent = title
     if (mRent) mRent.textContent = rentText[0]
-    if (mRentNumber) mRentNumber.textContent = rentText.length > 1 ? rentText[1] : undefined
+    if (mRentNumber) mRentNumber.textContent = rentText.length > 1 ? rentText[1] : null
     if (mList) mList.innerHTML = markersHtml
 }
 
@@ -277,10 +284,9 @@ function fillSharedCountyContent(
     countyName: string,
     props: GeoJSONFeature['properties'],
 ): void {
-    const rentText = formatMedianRent(
-        props && typeof props === 'object'
-            ? (props as Record<string, unknown>)[RENT_COUNTY_MEDIAN_RENT_PROPERTY]
-            : undefined,
+    const field = getActiveValueField()
+    const rentText = formatMetricValue(
+        props && typeof props === 'object' ? (props as Record<string, unknown>)[field] : undefined,
     )
 
     const markersHtml = countyMarkerRowsHtml(stateName, countyName)
@@ -297,11 +303,11 @@ function fillSharedCountyContent(
     const title = `${countyName}, ${stateName}`
     if (titleEl) titleEl.textContent = title
     if (rentEl) rentEl.textContent = rentText[0]
-    if (rentNumberEl) rentNumberEl.textContent = rentText.length > 1 ? rentText[1] : undefined
+    if (rentNumberEl) rentNumberEl.textContent = rentText.length > 1 ? rentText[1] : null
     if (listEl) listEl.innerHTML = markersHtml
     if (mTitle) mTitle.textContent = title
     if (mRent) mRent.textContent = rentText[0]
-    if (mRentNumber) mRentNumber.textContent = rentText.length > 1 ? rentText[1] : undefined
+    if (mRentNumber) mRentNumber.textContent = rentText.length > 1 ? rentText[1] : null
     if (mList) mList.innerHTML = markersHtml
 }
 
@@ -376,7 +382,7 @@ function wireStateHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): voi
         map.getCanvas().style.cursor = 'pointer'
     }
 
-    map.on('mousemove', RENT_STATE_FILL_LAYER_ID, (e) => {
+    map.on('mousemove', CHOROPLETH_STATE_FILL_LAYER_ID, (e) => {
         if (isPhoneLike()) return
         const feature = e.features?.[0] as GeoJSONFeature | undefined
         if (!feature || map.getZoom() >= 6) {
@@ -388,13 +394,13 @@ function wireStateHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): voi
         const props = feature.properties
         const stateName =
             props && typeof props === 'object'
-                ? String((props as Record<string, unknown>)['rent_state_csv_NAME'] ?? 'State')
+                ? String((props as Record<string, unknown>)[STATE_NAME_FIELD] ?? 'State')
                 : 'State'
         fillSharedStateContent(stateName, props)
         showFeaturePanel()
     })
 
-    map.on('mouseleave', RENT_STATE_FILL_LAYER_ID, () => {
+    map.on('mouseleave', CHOROPLETH_STATE_FILL_LAYER_ID, () => {
         if (!isPhoneLike()) clearHover()
     })
 
@@ -402,14 +408,14 @@ function wireStateHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): voi
         if (!isPhoneLike()) clearHover()
     })
 
-    map.on('click', RENT_STATE_FILL_LAYER_ID, (e) => {
+    map.on('click', CHOROPLETH_STATE_FILL_LAYER_ID, (e) => {
         const feature = e.features?.[0] as GeoJSONFeature | undefined
         if (!feature) return
         if (!isPhoneLike()) {
             const props = feature.properties
             const stateName =
                 props && typeof props === 'object'
-                    ? String((props as Record<string, unknown>)['rent_state_csv_NAME'] ?? '')
+                    ? String((props as Record<string, unknown>)[STATE_NAME_FIELD] ?? '')
                     : ''
             const anchor = US_STATE_FLY_ANCHORS.find((v) => v.state === stateName)
             if (anchor && map.getZoom() < 6) {
@@ -427,7 +433,7 @@ function wireStateHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): voi
         const props = feature.properties
         const stateName =
             props && typeof props === 'object'
-                ? String((props as Record<string, unknown>)['rent_state_csv_NAME'] ?? 'State')
+                ? String((props as Record<string, unknown>)[STATE_NAME_FIELD] ?? 'State')
                 : 'State'
         fillSharedStateContent(stateName, props)
         openStateModal()
@@ -468,7 +474,7 @@ function wireCountyHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): vo
         map.getCanvas().style.cursor = 'pointer'
     }
 
-    map.on('mousemove', RENT_COUNTY_FILL_LAYER_ID, (e) => {
+    map.on('mousemove', CHOROPLETH_COUNTY_FILL_LAYER_ID, (e) => {
         if (isPhoneLike()) return
 
         const feature = e.features?.[0] as GeoJSONFeature | undefined
@@ -487,7 +493,7 @@ function wireCountyHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): vo
         showFeaturePanel()
     })
 
-    map.on('mouseleave', RENT_COUNTY_FILL_LAYER_ID, () => {
+    map.on('mouseleave', CHOROPLETH_COUNTY_FILL_LAYER_ID, () => {
         if (!isPhoneLike()) clearHover()
     })
 
@@ -495,7 +501,7 @@ function wireCountyHoverOnMap(map: MapboxMap, allMaps: readonly MapboxMap[]): vo
         if (!isPhoneLike()) clearHover()
     })
 
-    map.on('click', RENT_COUNTY_FILL_LAYER_ID, (e) => {
+    map.on('click', CHOROPLETH_COUNTY_FILL_LAYER_ID, (e) => {
         if (!isPhoneLike()) return
         const feature = e.features?.[0] as GeoJSONFeature | undefined
         if (!feature || map.getZoom() < 6 || map.getZoom() >= 9) return

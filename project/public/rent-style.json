@@ -28,13 +28,13 @@
     "sources": {
         "rent-states": {
             "type": "vector",
-            "url": "mapbox://owenwilson80.7lt09s7a",
-            "promoteId": "rent_state_csv_GEO_ID"
+            "url": "mapbox://owenwilson80.1d31qo91",
+            "promoteId": "OBJECTID"
         },
         "rent-counties": {
             "type": "vector",
-            "url": "mapbox://owenwilson80.7rx5y3b1",
-            "promoteId": "GEO_ID"
+            "url": "mapbox://owenwilson80.b812o5x6",
+            "promoteId": "OBJECTID"
         }
     },
     "sprite": "mapbox://sprites/owenwilson80/cmomgmhvc000l01pz68bngoth/b8fjw435hx85pp7j172f016pl",
@@ -52,8 +52,8 @@
                 }
             },
             "source": "rent-counties",
-            "source-layer": "rent_county-4255ie",
-            "slot": "",
+            "source-layer": "USACounties-dd49p2",
+            "slot": "top",
             "paint": {
                 "fill-color": [
                     "case",
@@ -71,7 +71,7 @@
                         ],
                         [
                             "get",
-                            "median_rent"
+                            "MEDIAN_RENT"
                         ],
                         800,
                         "#e0cf84",
@@ -89,7 +89,7 @@
                         ],
                         [
                             "get",
-                            "median_rent"
+                            "MEDIAN_RENT"
                         ],
                         800,
                         "#f3e79b",
@@ -125,8 +125,8 @@
                 }
             },
             "source": "rent-states",
-            "source-layer": "rent_state-14x3h1",
-            "slot": "",
+            "source-layer": "USAStates-9wvuu8",
+            "slot": "top",
             "paint": {
                 "fill-color": [
                     "case",
@@ -145,7 +145,7 @@
                         ],
                         [
                             "get",
-                            "rent_state_csv_B25111_001E"
+                            "MEDIAN_RENT"
                         ],
                         800,
                         "#e0cf84",
@@ -163,7 +163,7 @@
                         ],
                         [
                             "get",
-                            "rent_state_csv_B25111_001E"
+                            "MEDIAN_RENT"
                         ],
                         800,
                         "#f3e79b",
@@ -195,8 +195,8 @@
             "id": "rent-state-14x3h1",
             "type": "line",
             "source": "rent-states",
-            "source-layer": "rent_state-14x3h1",
-            "slot": "",
+            "source-layer": "USAStates-9wvuu8",
+            "slot": "top",
             "paint": {
                 "line-width": 2,
                 "line-opacity": [
@@ -218,8 +218,8 @@
             "id": "rent-county-4255ie",
             "type": "line",
             "source": "rent-counties",
-            "source-layer": "rent_county-4255ie",
-            "slot": "",
+            "source-layer": "USACounties-dd49p2",
+            "slot": "top",
             "paint": {
                 "line-width": 0.25,
                 "line-opacity": [

@@ -1,34 +1,74 @@
-import { applyRentRange } from '../filters'
-import { wireCurrencyMinMax } from './currencyMinMax'
+import { applyMetricRange } from '../filters'
+import { refreshChoroplethPaint } from '../map'
+import {
+    getActiveMetric,
+    onMetricChanged,
+    setActiveMetric,
+    type HomeMetric,
+} from '../map/choroplethConfig'
+import { wireCurrencyMinMax, type CurrencyMinMaxHandle } from './currencyMinMax'
 
 /**
  * Sidebar / drawer interactions:
  *   - Home-type radio (rent vs mortgage)
  *   - Drawer open/close + summary expand
- *   - Rent / mortgage min-max currency widgets, with the rent fields wired to
- *     the central filter store via `applyRentRange`.
+ *   - Rent / mortgage min-max currency widgets wired to `applyMetricRange`
  *
  * Idempotent: safe to call once after the DOM is ready.
  */
 
 const HomeType = {
     RENT: 'rent',
-    HOME: 'home',
+    MORTGAGE: 'mortgage',
 } as const
 
 const RENT_FLOOR = 0
 const RENT_CEILING = 3000
 
 const MORTGAGE_FLOOR = 0
-const MORTGAGE_CEILING = 12000
-const MORTGAGE_DEFAULT_MAX = 12000
+const MORTGAGE_CEILING = 4000
+const MORTGAGE_DEFAULT_MAX = 4000
+
+let rentBudget: CurrencyMinMaxHandle | null = null
+let mortgageBudget: CurrencyMinMaxHandle | null = null
+
+function metricRangeFromSliders(
+    min: number,
+    max: number,
+    floor: number,
+    ceiling: number,
+): { min: number | null; max: number | null } {
+    return {
+        min: min > floor ? min : null,
+        max: max < ceiling ? max : null,
+    }
+}
+
+function syncBudgetPanels(metric: HomeMetric): void {
+    const rentPanel = document.getElementById('rent-budget-panel')
+    const mortgagePanel = document.getElementById('mortgage-budget-panel')
+    const isRent = metric === 'rent'
+    rentPanel?.classList.toggle('hidden', !isRent)
+    mortgagePanel?.classList.toggle('hidden', isRent)
+}
+
+function resetBudgetSlidersForMetric(metric: HomeMetric): void {
+    if (metric === 'rent') rentBudget?.resetToDefaults()
+    else mortgageBudget?.resetToDefaults()
+}
 
 export function initSidebar(): void {
+    rentBudget = wireRentBudget()
+    mortgageBudget = wireMortgageBudget()
     wireHomeTypeRadio()
     wireDrawer()
     wireDrawerSectionTooltips()
-    wireRentBudget()
-    wireMortgageBudget()
+    syncBudgetPanels(getActiveMetric())
+
+    onMetricChanged((metric) => {
+        syncBudgetPanels(metric)
+        resetBudgetSlidersForMetric(metric)
+    })
 }
 
 function wireHomeTypeRadio(): void {
@@ -41,13 +81,15 @@ function wireHomeTypeRadio(): void {
             )
             if (!selected) return
 
-            switch (selected.id) {
-                case HomeType.RENT:
-                    break
-                case HomeType.HOME:
-                    break
-                default:
-                    break
+            if (selected.id === HomeType.RENT) {
+                setActiveMetric('rent')
+                refreshChoroplethPaint()
+                return
+            }
+
+            if (selected.id === HomeType.MORTGAGE) {
+                setActiveMetric('mortgage')
+                refreshChoroplethPaint()
             }
         })
     })
@@ -76,21 +118,16 @@ function wireDrawer(): void {
     })
 }
 
-function wireRentBudget(): void {
-    wireCurrencyMinMax('#rent-min-display', '#rent-max-display', {
+function wireRentBudget(): CurrencyMinMaxHandle | null {
+    return wireCurrencyMinMax('#rent-min-display', '#rent-max-display', {
         floor: RENT_FLOOR,
         ceiling: RENT_CEILING,
         step: 50,
         defaultMin: RENT_FLOOR,
         defaultMax: RENT_CEILING,
         onChange: (min, max) => {
-            // When a slider sits at its limit, treat that side as unbounded so
-            // we don't hide polygons whose rent legitimately falls outside the
-            // UI's clamp range.
-            applyRentRange({
-                min: min > RENT_FLOOR ? min : null,
-                max: max < RENT_CEILING ? max : null,
-            })
+            if (getActiveMetric() !== 'rent') return
+            applyMetricRange(metricRangeFromSliders(min, max, RENT_FLOOR, RENT_CEILING))
         },
     })
 }
@@ -118,33 +155,33 @@ function wireDrawerSectionTooltips(): void {
 
     const position = (anchor: HTMLElement): void => {
         const rect = anchor.getBoundingClientRect()
-        const gap = 10
-        const left = Math.min(rect.right + gap, window.innerWidth - 8)
-        const top = rect.top + rect.height / 2
-        tooltip.style.left = `${left}px`
-        tooltip.style.top = `${top}px`
+        tooltip.style.top = `${rect.top + rect.height / 2}px`
+        tooltip.style.left = `${rect.right + 8}px`
         tooltip.style.transform = 'translateY(-50%)'
     }
 
-    const show = (anchor: HTMLElement): void => {
-        if (!isDrawerIconRail()) return
-        const text = anchor.dataset.tip?.trim()
-        if (!text) return
-        activeTip = anchor
-        tooltip.textContent = text
-        tooltip.classList.remove('hidden')
-        position(anchor)
-    }
-
     tips.forEach((tip) => {
-        tip.addEventListener('mouseenter', () => show(tip))
-        tip.addEventListener('focus', () => show(tip))
-        tip.addEventListener('mouseleave', () => {
-            if (activeTip === tip) hide()
+        tip.addEventListener('mouseenter', () => {
+            if (!isDrawerIconRail()) return
+            activeTip = tip
+            tooltip.textContent = tip.dataset.tip ?? ''
+            tooltip.classList.remove('hidden')
+            position(tip)
         })
-        tip.addEventListener('blur', () => {
-            if (activeTip === tip) hide()
+        tip.addEventListener('mouseleave', hide)
+        tip.addEventListener('focus', () => {
+            if (!isDrawerIconRail()) return
+            activeTip = tip
+            tooltip.textContent = tip.dataset.tip ?? ''
+            tooltip.classList.remove('hidden')
+            position(tip)
         })
+        tip.addEventListener('blur', hide)
+    })
+
+    window.addEventListener('resize', () => {
+        if (activeTip && isDrawerIconRail()) position(activeTip)
+        else hide()
     })
 
     window.addEventListener('scroll', () => {
@@ -154,12 +191,18 @@ function wireDrawerSectionTooltips(): void {
     document.getElementById('app-drawer')?.addEventListener('change', hide)
 }
 
-function wireMortgageBudget(): void {
-    wireCurrencyMinMax('#mortgage-min-display', '#mortgage-max-display', {
+function wireMortgageBudget(): CurrencyMinMaxHandle | null {
+    return wireCurrencyMinMax('#mortgage-min-display', '#mortgage-max-display', {
         floor: MORTGAGE_FLOOR,
         ceiling: MORTGAGE_CEILING,
         step: 50,
         defaultMin: MORTGAGE_FLOOR,
         defaultMax: MORTGAGE_DEFAULT_MAX,
+        onChange: (min, max) => {
+            if (getActiveMetric() !== 'mortgage') return
+            applyMetricRange(
+                metricRangeFromSliders(min, max, MORTGAGE_FLOOR, MORTGAGE_CEILING),
+            )
+        },
     })
 }

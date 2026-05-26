@@ -33,14 +33,18 @@ export type CurrencyMinMaxOpts = {
     onChange?: (min: number, max: number) => void
 }
 
+export type CurrencyMinMaxHandle = {
+    resetToDefaults: () => void
+}
+
 export function wireCurrencyMinMax(
     minSel: string,
     maxSel: string,
     { floor, ceiling, step, defaultMin, defaultMax, onChange }: CurrencyMinMaxOpts,
-): void {
+): CurrencyMinMaxHandle | null {
     const minInp = document.querySelector<HTMLInputElement>(minSel)
     const maxInp = document.querySelector<HTMLInputElement>(maxSel)
-    if (!(minInp && maxInp)) return
+    if (!(minInp && maxInp)) return null
 
     let mn = snapToStep(defaultMin, floor, ceiling, step)
     let mx = snapToStep(defaultMax, floor, ceiling, step)
@@ -136,5 +140,18 @@ export function wireCurrencyMinMax(
         }
     })
 
+    function resetToDefaults(): void {
+        editingMin = false
+        editingMax = false
+        mn = snapToStep(defaultMin, floor, ceiling, step)
+        mx = snapToStep(defaultMax, floor, ceiling, step)
+        if (mx < mn) mx = mn
+        lastEmittedMin = undefined
+        lastEmittedMax = undefined
+        pushDisplays()
+    }
+
     pushDisplays()
+
+    return { resetToDefaults }
 }

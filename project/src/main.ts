@@ -15,6 +15,7 @@ import './style.css'
 
 import {
   createMaps,
+  initChoroplethPaint,
   initMapLegend,
   wireInsets,
   wireMapResize,
@@ -28,11 +29,12 @@ const trio = await createMaps()
 const { mainMap, hawaiiMap, alaskaMap, mapboxAccessToken } = trio
 
 initPoiSearch(mainMap, hawaiiMap, alaskaMap, mapboxAccessToken)
-initPoiGeographyFilter(mainMap)
+initPoiGeographyFilter()
 wireStateHoverMaps(trio)
 initMapLegend()
 wireInsets(trio)
 initMapVisibility()
 wireMapResize(trio)
 registerFilterMaps(mainMap, hawaiiMap, alaskaMap)
+initChoroplethPaint(trio)
 initSidebar()

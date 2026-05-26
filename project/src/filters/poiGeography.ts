@@ -1,20 +1,23 @@
-import type { Map as MapboxMap } from 'mapbox-gl'
-import { setFilterContributions, type LayerContribution } from './filterStore'
+import {
+    clearFilterContributions,
+    setFilterContributions,
+    type LayerContribution,
+} from './filterStore'
 import { getVisiblePoiGeography, hasSavedPoi } from '../poi'
 import {
     COUNTY_NAME_FIELDS,
     COUNTY_STATE_FIELD,
-    RENT_STATE_NAME_FIELD,
+    STATE_NAME_FIELD,
     countyLabelVariants,
     isUnknownCountyLabel,
     stateLabelVariants,
 } from '../geo/countyMatch'
 import {
-    RENT_COUNTY_FILL_LAYER_ID,
-    RENT_COUNTY_LINE_LAYER_ID,
-    RENT_STATE_FILL_LAYER_ID,
-    RENT_STATE_LINE_LAYER_ID,
-} from './rent'
+    CHOROPLETH_COUNTY_FILL_LAYER_ID,
+    CHOROPLETH_COUNTY_LINE_LAYER_ID,
+    CHOROPLETH_STATE_FILL_LAYER_ID,
+    CHOROPLETH_STATE_LINE_LAYER_ID,
+} from '../map/choroplethConfig'
 
 const SOURCE_ID = 'poiGeography'
 
@@ -26,7 +29,7 @@ function buildStateExpr(states: string[]): unknown | null {
         for (const v of stateLabelVariants(state)) labels.add(v)
     }
 
-    return ['in', ['get', RENT_STATE_NAME_FIELD], ['literal', [...labels]]]
+    return ['in', ['get', STATE_NAME_FIELD], ['literal', [...labels]]]
 }
 
 function countyFieldEqualsAnyVariant(field: string, variants: string[]): unknown[] {
@@ -62,14 +65,15 @@ function buildCountyExpr(pairs: ReadonlyArray<{ state: string; county: string }>
 
 function applyGeographyFilter(): void {
     if (!hasSavedPoi()) {
-        setFilterContributions(SOURCE_ID, [])
+        clearFilterContributions(SOURCE_ID)
         return
     }
 
     const geo = getVisiblePoiGeography()
 
     if (geo.states.length === 0) {
-        setFilterContributions(SOURCE_ID, [])
+        // No visible POI geography — remove POI filter so the full map shows.
+        clearFilterContributions(SOURCE_ID)
         return
     }
 
@@ -77,21 +81,25 @@ function applyGeographyFilter(): void {
     const countyExpr = buildCountyExpr(geo.pairs)
 
     const contributions: LayerContribution[] = [
-        { layerId: RENT_STATE_FILL_LAYER_ID, expr: stateExpr },
-        { layerId: RENT_STATE_LINE_LAYER_ID, expr: stateExpr },
-        { layerId: RENT_COUNTY_FILL_LAYER_ID, expr: countyExpr },
-        { layerId: RENT_COUNTY_LINE_LAYER_ID, expr: countyExpr },
+        { layerId: CHOROPLETH_STATE_FILL_LAYER_ID, expr: stateExpr },
+        { layerId: CHOROPLETH_STATE_LINE_LAYER_ID, expr: stateExpr },
+        { layerId: CHOROPLETH_COUNTY_FILL_LAYER_ID, expr: countyExpr },
+        { layerId: CHOROPLETH_COUNTY_LINE_LAYER_ID, expr: countyExpr },
     ]
 
     setFilterContributions(SOURCE_ID, contributions)
 }
 
-/** Register POI geography filtering (via filter store). Re-apply after style reload. */
-export function initPoiGeographyFilter(mainMap: MapboxMap): void {
+/** Re-apply POI state/county visibility filter (e.g. after a style swap). */
+export function refreshPoiGeographyFilter(): void {
+    applyGeographyFilter()
+}
+
+/** Register POI geography filtering. Per-map style reload is handled by `filterStore`. */
+export function initPoiGeographyFilter(): void {
     const refresh = (): void => applyGeographyFilter()
 
     window.addEventListener('poi-counts-changed', refresh)
     window.addEventListener('poi-visibility-changed', refresh)
-    mainMap.on('style.load', refresh)
     refresh()
 }

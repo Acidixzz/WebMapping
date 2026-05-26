@@ -1,5 +1,6 @@
-import { getPoiLegendRows, setPoiBatchVisible } from '../poi'
-import { MEDIAN_RENT_LEGEND_STOPS, rentRampGradientCss } from './legendStops'
+import { getPoiLegendRows, notifyPoiLegendUpdated, setPoiBatchVisible } from '../poi'
+import { getActiveMetric, onMetricChanged } from './choroplethConfig'
+import { getLegendStopsForMetric, rampGradientCss } from './legendStops'
 
 const LEGEND_SHOW_HIDE_MS = 220
 
@@ -8,11 +9,10 @@ const rentRampEl = () => document.getElementById('legend-rent-ramp')
 const rentBarEl = () => document.getElementById('legend-rent-ramp-bar')
 const rentMinEl = () => document.getElementById('legend-rent-min')
 const rentMaxEl = () => document.getElementById('legend-rent-max')
+const rentHeadingEl = () => document.getElementById('legend-rent-heading')
 const rentFootnoteEl = () => document.getElementById('legend-rent-footnote')
 const poiListEl = () => document.getElementById('legend-poi-list')
 const poiEmptyEl = () => document.getElementById('legend-poi-empty')
-
-let rentRampPainted = false
 
 export type SetLegendVisibleOptions = {
     /** When false, show/hide immediately (e.g. initial drawer sync). Default true. */
@@ -33,32 +33,37 @@ function emitLegendVisibility(visible: boolean): void {
     )
 }
 
-function paintRentRampOnce(): void {
-    if (rentRampPainted) return
-
+/** Update choropleth ramp gradient, labels, and heading for the active home metric. */
+export function refreshMetricRamp(): void {
     const ramp = rentRampEl()
     const bar = rentBarEl()
     const minLabel = rentMinEl()
     const maxLabel = rentMaxEl()
+    const heading = rentHeadingEl()
     const footnote = rentFootnoteEl()
     if (!ramp || !bar || !minLabel || !maxLabel) return
 
-    const stops = MEDIAN_RENT_LEGEND_STOPS
+    const metric = getActiveMetric()
+    const stops = getLegendStopsForMetric(metric).normal
     const min = stops[0].value
     const max = stops[stops.length - 1].value
+    const scaleName = metric === 'mortgage' ? 'Mortgage payment' : 'Median rent'
 
-    bar.style.background = rentRampGradientCss(stops)
+    bar.style.background = rampGradientCss(stops)
     minLabel.textContent = formatRentValue(min)
     maxLabel.textContent = formatRentValue(max)
     bar.setAttribute(
         'aria-label',
-        `Median rent color scale from ${formatRentValue(min)} – ${formatRentValue(max)}`,
+        `${scaleName} color scale from ${formatRentValue(min)} – ${formatRentValue(max)}`,
     )
+
+    if (heading) {
+        heading.textContent = metric === 'mortgage' ? 'Mortgage payment' : 'Median rent'
+    }
 
     ramp.classList.remove('hidden')
     ramp.setAttribute('aria-hidden', 'false')
     footnote?.classList.remove('hidden')
-    rentRampPainted = true
 }
 
 function onLegendAnimationEnd(
@@ -144,13 +149,17 @@ async function showLegendAnimated(legend: HTMLElement): Promise<void> {
 function renderPoiRows(): void {
     const ul = poiListEl()
     const empty = poiEmptyEl()
-    if (!ul || !empty) return
+    if (!ul || !empty) {
+        notifyPoiLegendUpdated()
+        return
+    }
 
     const rows = getPoiLegendRows()
     ul.replaceChildren()
 
     if (rows.length === 0) {
         empty.classList.remove('hidden')
+        notifyPoiLegendUpdated()
         return
     }
 
@@ -179,11 +188,12 @@ function renderPoiRows(): void {
         toggle?.addEventListener('change', () => {
             if (!toggle) return
             setPoiBatchVisible(row.runId, toggle.checked)
-            renderPoiRows()
         })
 
         ul.appendChild(li)
     }
+
+    notifyPoiLegendUpdated()
 }
 
 function escapeHtml(s: string): string {
@@ -194,11 +204,12 @@ function escapeHtml(s: string): string {
         .replace(/"/g, '&quot;')
 }
 
-/** Mount legend UI. Rent ramp is static; POI rows refresh on search / visibility changes. */
+/** Mount legend UI. Choropleth ramp refreshes on metric change; POI rows refresh on search. */
 export function initMapLegend(): void {
-    paintRentRampOnce()
+    refreshMetricRamp()
     renderPoiRows()
 
+    onMetricChanged(() => refreshMetricRamp())
     window.addEventListener('poi-counts-changed', () => renderPoiRows())
     window.addEventListener('poi-visibility-changed', () => renderPoiRows())
 }

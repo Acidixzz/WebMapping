@@ -15,6 +15,7 @@ export {
   getVisiblePoiGeography,
   getPoiLegendRows,
   setPoiBatchVisible,
+  notifyPoiLegendUpdated,
   hasSavedPoi,
   type PoiCountsSnapshot,
   type PoiGeography,

@@ -8,10 +8,17 @@ export {
 } from './insets'
 export {
     initMapLegend,
+    refreshMetricRamp,
     setLegendVisible,
     isLegendVisible,
     type SetLegendVisibleOptions,
 } from './legend'
-export { MEDIAN_RENT_LEGEND_STOPS, rentRampGradientCss, type RentLegendStop } from './legendStops'
+export {
+    MEDIAN_RENT_LEGEND_STOPS,
+    MEDIAN_MORTGAGE_LEGEND_STOPS,
+    rampGradientCss,
+    type LegendStop,
+} from './legendStops'
+export { initChoroplethPaint, refreshChoroplethPaint } from './choroplethPaint'
 export { wireMapResize } from './resize'
 export { wireStateHoverMaps } from './stateHover'

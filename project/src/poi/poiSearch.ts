@@ -8,7 +8,7 @@ import {
 } from '../geo/bounds'
 import { pickCountyStateFromTileProps } from '../geo/countyMatch'
 import { US_STATE_SEARCH_ANCHORS } from '../geo/stateAnchors'
-import { RENT_COUNTY_FILL_LAYER_ID } from '../filters/rent'
+import { CHOROPLETH_COUNTY_FILL_LAYER_ID } from '../map/choroplethConfig'
 
 const SEARCH_BOX_FORWARD = 'https://api.mapbox.com/search/searchbox/v1/forward'
 const SEARCH_BOX_SUGGEST = 'https://api.mapbox.com/search/searchbox/v1/suggest'
@@ -176,49 +176,62 @@ function adminAreaFromCountyTiles(
   lng: number,
   lat: number,
 ): PoiAdminArea | null {
-  if (!map.isStyleLoaded() || !map.getLayer(RENT_COUNTY_FILL_LAYER_ID)) return null
+  if (!map.isStyleLoaded() || !map.getLayer(CHOROPLETH_COUNTY_FILL_LAYER_ID)) return null
   const pt = map.project([lng, lat])
   const feats = map.queryRenderedFeatures([pt.x, pt.y], {
-    layers: [RENT_COUNTY_FILL_LAYER_ID],
+    layers: [CHOROPLETH_COUNTY_FILL_LAYER_ID],
   })
   const props = feats[0]?.properties as Record<string, unknown> | undefined
   return pickCountyStateFromTileProps(props)
 }
 
-/** Align POI admin labels with rent county tile names (fixes geocode vs NAMELSAD mismatches). */
-function refreshPoiAdminFromCountyTiles(map: mapboxgl.Map, ids: string[]): void {
-  const relevant = ids.filter((id) => saved.get(id)?.map === map)
-  if (relevant.length === 0) return
+/** Align POI admin labels with county tile names (fixes geocode vs NAMELSAD mismatches). */
+function refreshPoiAdminFromCountyTiles(map: mapboxgl.Map, ids: string[]): Promise<void> {
+    const relevant = ids.filter((id) => saved.get(id)?.map === map)
+    if (relevant.length === 0) return Promise.resolve()
 
-  const apply = (): boolean => {
-    if (map.getZoom() < COUNTY_TILE_MIN_ZOOM) return false
-    let changed = false
-    for (const id of relevant) {
-      const poi = saved.get(id)
-      if (!poi) continue
-      const { lng, lat } = poi.marker.getLngLat()
-      const hit = adminAreaFromCountyTiles(map, lng, lat)
-      if (!hit) continue
-      const cur = poiAdminById.get(id)
-      if (!cur) continue
-      if (cur.state === hit.state && cur.county === hit.county) continue
-      poiAdminById.set(id, hit)
-      changed = true
+    const apply = (): boolean => {
+        if (map.getZoom() < COUNTY_TILE_MIN_ZOOM) return false
+        let changed = false
+        for (const id of relevant) {
+            const poi = saved.get(id)
+            if (!poi) continue
+            const { lng, lat } = poi.marker.getLngLat()
+            const hit = adminAreaFromCountyTiles(map, lng, lat)
+            if (!hit) continue
+            const cur = poiAdminById.get(id)
+            if (!cur) continue
+            if (cur.state === hit.state && cur.county === hit.county) continue
+            poiAdminById.set(id, hit)
+            changed = true
+        }
+        return changed
     }
-    if (changed) emitPoiCountsChanged()
-    return changed
-  }
 
-  if (apply()) return
+    return new Promise((resolve) => {
+        const finish = (): void => {
+            resolve()
+        }
 
-  const onZoom = (): void => {
-    if (map.getZoom() < COUNTY_TILE_MIN_ZOOM) return
-    if (apply()) map.off('zoomend', onZoom)
-  }
-  map.on('zoomend', onZoom)
-  map.once('idle', () => {
-    apply()
-  })
+        if (apply()) {
+            finish()
+            return
+        }
+
+        const onZoom = (): void => {
+            if (map.getZoom() < COUNTY_TILE_MIN_ZOOM) return
+            if (apply()) {
+                map.off('zoomend', onZoom)
+                finish()
+            }
+        }
+        map.on('zoomend', onZoom)
+        map.once('idle', () => {
+            apply()
+            map.off('zoomend', onZoom)
+            finish()
+        })
+    })
 }
 
 function emitPoiCountsChanged(): void {
@@ -229,6 +242,14 @@ function emitPoiCountsChanged(): void {
 function emitPoiVisibilityChanged(): void {
   if (typeof window === 'undefined') return
   window.dispatchEvent(new Event('poi-visibility-changed'))
+}
+
+/** Call at the end of legend POI row rendering (for tests or future hooks). */
+export function notifyPoiLegendUpdated(): void {
+  if (typeof window === 'undefined') return
+  queueMicrotask(() => {
+    window.dispatchEvent(new Event('poi-legend-updated'))
+  })
 }
 
 function isPoiIdVisible(id: string): boolean {
@@ -311,7 +332,6 @@ export function setPoiBatchVisible(runId: string, visible: boolean): void {
   if (!batch || batch.visible === visible) return
   batch.visible = visible
   setBatchMarkersVisible(batch, visible)
-  emitPoiCountsChanged()
   emitPoiVisibilityChanged()
 }
 
@@ -1340,9 +1360,11 @@ export function initPoiSearch(
         })
 
         poiSavedList.appendChild(li)
-        refreshPoiAdminFromCountyTiles(mainMap, batchIds)
-        refreshPoiAdminFromCountyTiles(hawaiiMap, batchIds)
-        refreshPoiAdminFromCountyTiles(alaskaMap, batchIds)
+        await Promise.all([
+          refreshPoiAdminFromCountyTiles(mainMap, batchIds),
+          refreshPoiAdminFromCountyTiles(hawaiiMap, batchIds),
+          refreshPoiAdminFromCountyTiles(alaskaMap, batchIds),
+        ])
         emitPoiCountsChanged()
         emitPoiVisibilityChanged()
       }
